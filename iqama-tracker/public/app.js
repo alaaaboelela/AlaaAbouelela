@@ -153,19 +153,24 @@ function confirmDialog(text) {
 // ---------- التنقل ----------
 
 function showView(view) {
-  if (!VIEWS[view]) view = 'dashboard';
+  const isModule = typeof Modules !== 'undefined' && Modules.has(view);
+  if (!VIEWS[view] && !isModule) view = 'dashboard';
   state.view = view;
-  for (const section of $$('.view')) section.classList.toggle('active', section.id === `view-${view}`);
+  const sectionId = isModule ? 'view-module' : `view-${view}`;
+  for (const section of $$('.view')) section.classList.toggle('active', section.id === sectionId);
   for (const link of $$('.nav a')) link.classList.toggle('active', link.dataset.view === view);
-  $('viewTitle').textContent = VIEWS[view].title;
-  $('viewSubtitle').textContent = VIEWS[view].subtitle;
-  document.title = `${VIEWS[view].title} — منصة الإقامات`;
+  const meta = isModule ? Modules.meta(view) : VIEWS[view];
+  $('viewTitle').textContent = meta.title;
+  $('viewSubtitle').textContent = meta.subtitle;
+  document.title = `${meta.title} — منصة الإقامات`;
+  $('addBtn').querySelector('.add-label').textContent = isModule ? `إضافة ${meta.singular}` : 'إضافة إقامة';
   document.body.classList.remove('nav-open');
   window.scrollTo({ top: 0 });
 
   if (view === 'dashboard') loadDashboard();
   if (view === 'residencies') loadList();
   if (view === 'settings') loadSettings();
+  if (isModule) Modules.show(view);
 }
 
 window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
@@ -233,7 +238,7 @@ function notifyBrowser(s) {
 // ---------- لوحة المتابعة ----------
 
 async function loadDashboard() {
-  await Promise.all([loadStats(), loadChart(), loadUpcoming()]);
+  await Promise.all([loadStats(), loadChart(), loadUpcoming(), Modules.loadOverview()]);
 }
 
 async function loadUpcoming() {
@@ -394,6 +399,7 @@ async function loadList() {
         <span class="track"><span class="fill" style="width:${progress(r)}%"></span></span></div></td>
       <td><span class="pill ${r.status}">${icon(STATUS[r.status].icon, 'icon-sm')}${STATUS[r.status].label}</span></td>
       <td><div class="row-actions">
+        <button class="icon-btn" data-profile="${r.id}" title="ملف الموظف والمستندات" aria-label="ملف ${esc(r.name)}">${icon('folder')}</button>
         <button class="icon-btn" data-edit="${r.id}" title="تعديل" aria-label="تعديل ${esc(r.name)}">${icon('edit')}</button>
         <button class="icon-btn danger" data-delete="${r.id}" title="حذف" aria-label="حذف ${esc(r.name)}">${icon('trash')}</button>
       </div></td>
@@ -434,6 +440,8 @@ $('next').addEventListener('click', () => { state.page += 1; loadList(); });
 $('rows').addEventListener('click', async (e) => {
   const edit = e.target.closest('[data-edit]');
   const del = e.target.closest('[data-delete]');
+  const profile = e.target.closest('[data-profile]');
+  if (profile) Modules.openEmployee(state.items.find((r) => r.id === profile.dataset.profile));
   if (edit) openForm(state.items.find((r) => r.id === edit.dataset.edit));
   if (del) {
     const r = state.items.find((x) => x.id === del.dataset.delete);
@@ -546,7 +554,7 @@ function openForm(record) {
   setTimeout(() => form.elements.name.focus(), 50);
 }
 
-$('addBtn').addEventListener('click', () => openForm(null));
+$('addBtn').addEventListener('click', () => (Modules.has(state.view) ? Modules.openForm(state.view) : openForm(null)));
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -684,6 +692,7 @@ $('logout').addEventListener('click', async () => {
   const me = await api('/api/me').catch(() => null);
   if (!me) return; // تم التحويل لصفحة الدخول
   state.me = me;
+  await Modules.init();
   $('username').textContent = me.username;
   $('avatar').textContent = me.username.slice(0, 1).toUpperCase();
   renderThemeOptions();

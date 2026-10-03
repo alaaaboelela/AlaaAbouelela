@@ -35,7 +35,8 @@ test('API', { skip: !TEST_DB && 'TEST_DATABASE_URL غير مضبوط' }, async (
   const { createApp } = require('../src/server');
 
   await migrate();
-  await pool.query('TRUNCATE residencies, users RESTART IDENTITY');
+  await pool.query(`TRUNCATE residencies, users, contracts, driver_cards, cars, car_events, advances,
+    advance_payments, custody, documents RESTART IDENTITY CASCADE`);
   await pool.query("UPDATE settings SET value = '30' WHERE key = 'alert_days'");
   await pool.query('INSERT INTO users (username, password_hash) VALUES ($1, $2)', ['admin', hashPassword('secret123')]);
 
@@ -97,8 +98,10 @@ test('API', { skip: !TEST_DB && 'TEST_DATABASE_URL غير مضبوط' }, async (
     const monthly = (await call('/api/stats/monthly')).data;
     assert.equal(monthly.length, 12);
     assert.equal(monthly[0].month, isoInDays(0).slice(0, 7));
-    // أحمد (بعد 10 أيام) وسارة (بعد 200 يوم) داخل الـ 12 شهرًا، ومحمد المنتهي خارجها
-    assert.equal(monthly.reduce((sum, m) => sum + m.count, 0), 2);
+    // تُحسب فقط التواريخ من بداية الشهر الحالي (محمد المنتهي قد يقع في الشهر الحالي أو السابق)
+    const monthStart = `${isoInDays(0).slice(0, 7)}-01`;
+    const expected = [isoInDays(10), isoInDays(-3), isoInDays(200)].filter((d) => d >= monthStart).length;
+    assert.equal(monthly.reduce((sum, m) => sum + m.count, 0), expected);
 
     const expiring = (await call('/api/residencies?status=expiring')).data;
     assert.deepEqual(expiring.items.map((r) => r.name), ['أحمد']);

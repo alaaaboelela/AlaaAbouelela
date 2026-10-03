@@ -5,6 +5,8 @@ const config = require('./config');
 
 // إرجاع أعمدة DATE كنص "YYYY-MM-DD" بدل كائن Date لتجنب مشاكل فرق التوقيت
 types.setTypeParser(1082, (v) => v);
+// أعمدة NUMERIC (المبالغ) كأرقام
+types.setTypeParser(1700, (v) => Number.parseFloat(v));
 
 const pool = new Pool({ connectionString: config.databaseUrl });
 

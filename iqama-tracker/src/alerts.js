@@ -36,7 +36,7 @@ function escapeHtml(s) {
   })[c]);
 }
 
-function buildEmail({ alertDays, total, items }) {
+function buildEmail({ alertDays, total, items, modules = [] }) {
   const remaining = (d) => (d < 0 ? `منتهية منذ ${-d} يوم` : d === 0 ? 'تنتهي اليوم' : `${d} يوم`);
   const rowsHtml = items.map((r) => `
     <tr style="background:${r.daysLeft < 0 ? '#fee2e2' : '#fef3c7'}">
@@ -54,15 +54,55 @@ function buildEmail({ alertDays, total, items }) {
       <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse">
         <tr><th>الاسم</th><th>رقم الإقامة</th><th>جهة العمل</th><th>تاريخ الانتهاء</th><th>المتبقي</th></tr>
         ${rowsHtml}
-      </table>${more}</div>`,
+      </table>${more}${modulesHtml(modules)}</div>`,
   };
 }
 
 let transporter;
+// العقود وبطاقات السائقين والسيارات التي تحتاج متابعة
+async function collectModuleAlerts() {
+  const { MODULES } = require('./modules');
+  const { inner, context } = require('./crud');
+  const base = await context();
+  const sections = [
+    ['contracts', ['expiring', 'expired'], (r) => [r.company_name, r.contract_number, r.end_date]],
+    ['driver_cards', ['expiring', 'expired'], (r) => [r.employee_name, r.card_number, r.expiry_date]],
+    ['cars', ['attention', 'expired'], (r) => [r.plate_number, r.driver_name || '', [
+      r.registration_expiry && `الاستمارة ${r.registration_expiry}`,
+      r.insurance_expiry && `التأمين ${r.insurance_expiry}`,
+      r.next_service_date && `الصيانة ${r.next_service_date}`,
+    ].filter(Boolean).join(' · ')]],
+  ];
+  const out = [];
+  for (const [key, statuses, cols] of sections) {
+    const m = MODULES[key];
+    const { sql, p } = inner(m, base);
+    const { rows } = await pool.query(
+      `SELECT * FROM (${sql}) x WHERE status = ANY(${p.add(statuses)}) ORDER BY ${m.sort} LIMIT 100`,
+      p.values,
+    );
+    if (rows.length) {
+      out.push({ label: m.label, rows: rows.map((r) => ({ cells: cols(r), status: m.statuses[r.status].label, expired: r.status === 'expired' })) });
+    }
+  }
+  return out;
+}
+
+function modulesHtml(modules) {
+  return modules.map((s) => `
+    <h3 style="margin-top:24px">${escapeHtml(s.label)} (${s.rows.length})</h3>
+    <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse">
+      ${s.rows.map((r) => `<tr style="background:${r.expired ? '#fee2e2' : '#fef3c7'}">
+        ${r.cells.map((c) => `<td>${escapeHtml(c ?? '')}</td>`).join('')}<td>${escapeHtml(r.status)}</td></tr>`).join('')}
+    </table>`).join('');
+}
+
 async function sendAlertEmail() {
   if (!emailEnabled()) throw new Error('إعدادات SMTP أو ALERT_EMAILS غير مضبوطة');
   const data = await collectAlerts();
-  if (!data.total) return { sent: false, total: 0 };
+  data.modules = await collectModuleAlerts();
+  const moduleCount = data.modules.reduce((n, sct) => n + sct.rows.length, 0);
+  if (!data.total && !moduleCount) return { sent: false, total: 0 };
   transporter ||= nodemailer.createTransport({
     host: config.smtp.host,
     port: config.smtp.port,
@@ -70,7 +110,7 @@ async function sendAlertEmail() {
     auth: config.smtp.user ? { user: config.smtp.user, pass: config.smtp.pass } : undefined,
   });
   await transporter.sendMail({ from: config.smtp.from, to: config.alertEmails, ...buildEmail(data) });
-  return { sent: true, total: data.total };
+  return { sent: true, total: data.total + moduleCount };
 }
 
 // يُفحص كل ساعة، ويُرسل مرة واحدة يوميًا بعد ساعة ALERT_HOUR بتوقيت السعودية
@@ -99,4 +139,4 @@ function startScheduler() {
   setInterval(dailyCheck, 60 * 60 * 1000).unref();
 }
 
-module.exports = { collectAlerts, buildEmail, sendAlertEmail, startScheduler, emailEnabled };
+module.exports = { collectAlerts, collectModuleAlerts, buildEmail, sendAlertEmail, startScheduler, emailEnabled };

@@ -4,6 +4,7 @@ const config = require('./config');
 const { migrate } = require('./db');
 const auth = require('./auth');
 const { router: residencies } = require('./residencies');
+const { router: modules } = require('./crud');
 const alerts = require('./alerts');
 
 function createApp() {
@@ -30,6 +31,7 @@ function createApp() {
     alertEmails: config.alertEmails,
   }));
   app.use('/api', residencies);
+  app.use('/api', modules);
 
   app.get('/api/alerts', async (req, res) => {
     res.json({ ...(await alerts.collectAlerts()), emailEnabled: alerts.emailEnabled() });

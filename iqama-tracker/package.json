@@ -9,7 +9,8 @@
     "migrate": "node scripts/migrate.js",
     "create-user": "node scripts/create-user.js",
     "seed": "node scripts/seed.js",
-    "test": "node --test"
+    "seed-demo": "node scripts/seed-demo.js",
+    "test": "node --test --test-concurrency=1"
   },
   "engines": {
     "node": ">=20.12"
