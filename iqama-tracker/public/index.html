@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>متابعة الإقامات</title>
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,7 +15,9 @@
         <input id="alertDays" type="number" min="1" max="365"> يوم
       </label>
       <button id="saveSettings" class="secondary">حفظ</button>
-      <button id="enableNotify" class="secondary">تفعيل إشعارات المتصفح</button>
+      <button id="enableNotify" class="secondary">إشعارات المتصفح</button>
+      <span id="user" class="user"></span>
+      <button id="logout" class="secondary">خروج</button>
     </div>
   </header>
 
@@ -22,23 +25,33 @@
     <section id="alertBanner" class="banner" hidden></section>
 
     <section class="stats">
-      <div class="stat"><span id="statTotal">0</span>إجمالي الإقامات</div>
-      <div class="stat expiring"><span id="statExpiring">0</span>قريبة من الانتهاء</div>
-      <div class="stat expired"><span id="statExpired">0</span>منتهية</div>
-      <div class="stat valid"><span id="statValid">0</span>سارية</div>
+      <button class="stat" data-status="all"><span id="statTotal">0</span>إجمالي الإقامات</button>
+      <button class="stat expiring" data-status="expiring"><span id="statExpiring">0</span>قريبة من الانتهاء</button>
+      <button class="stat expired" data-status="expired"><span id="statExpired">0</span>منتهية</button>
+      <button class="stat valid" data-status="valid"><span id="statValid">0</span>سارية</button>
     </section>
 
     <section class="card">
       <h2 id="formTitle">إضافة إقامة جديدة</h2>
       <form id="form">
         <input type="hidden" name="id">
-        <label>الاسم *<input name="name" required></label>
-        <label>رقم الإقامة *<input name="iqamaNumber" required inputmode="numeric"></label>
-        <label>تاريخ الانتهاء (ميلادي) *<input name="expiryDate" type="date" required></label>
-        <label>الجنسية<input name="nationality"></label>
-        <label>رقم الجوال<input name="phone" type="tel"></label>
-        <label>جهة العمل / الكفيل<input name="employer"></label>
-        <label class="wide">ملاحظات<textarea name="notes" rows="2"></textarea></label>
+        <label>الاسم *<input name="name" required maxlength="200"></label>
+        <label>رقم الإقامة *<input name="iqamaNumber" required inputmode="numeric" maxlength="10" pattern="2[0-9]{9}" title="10 أرقام تبدأ بـ 2"></label>
+        <div class="date-field">
+          <span>تاريخ الانتهاء *
+            <span class="toggle">
+              <label><input type="radio" name="calendar" value="hijri" checked> هجري</label>
+              <label><input type="radio" name="calendar" value="gregorian"> ميلادي</label>
+            </span>
+          </span>
+          <input name="expiryDateHijri" placeholder="مثال: 1448-04-22" inputmode="numeric">
+          <input name="expiryDate" type="date" hidden>
+          <small id="dateHint" class="muted"></small>
+        </div>
+        <label>الجنسية<input name="nationality" maxlength="100"></label>
+        <label>رقم الجوال<input name="phone" type="tel" maxlength="30"></label>
+        <label>جهة العمل / الكفيل<input name="employer" maxlength="200"></label>
+        <label class="wide">ملاحظات<textarea name="notes" rows="2" maxlength="2000"></textarea></label>
         <div class="actions wide">
           <button type="submit" id="submitBtn">إضافة</button>
           <button type="button" id="cancelEdit" class="secondary" hidden>إلغاء التعديل</button>
@@ -50,29 +63,44 @@
     <section class="card">
       <div class="toolbar">
         <h2>قائمة الإقامات</h2>
-        <input id="search" type="search" placeholder="بحث بالاسم أو رقم الإقامة...">
+        <input id="search" type="search" placeholder="بحث بالاسم أو رقم الإقامة أو جهة العمل...">
         <select id="filter">
           <option value="all">الكل</option>
           <option value="expiring">قريبة من الانتهاء</option>
           <option value="expired">منتهية</option>
           <option value="valid">سارية</option>
         </select>
+        <select id="sort">
+          <option value="expiry">الأقرب انتهاءً</option>
+          <option value="-expiry">الأبعد انتهاءً</option>
+          <option value="name">الاسم</option>
+          <option value="newest">الأحدث إضافة</option>
+        </select>
+        <button id="exportBtn" class="secondary">تصدير Excel</button>
+        <label class="button secondary">استيراد CSV<input id="importFile" type="file" accept=".csv,text/csv" hidden></label>
       </div>
+      <p id="importResult" class="muted" hidden></p>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>الاسم</th><th>رقم الإقامة</th><th>الجنسية</th><th>تاريخ الانتهاء</th>
+              <th>الاسم</th><th>رقم الإقامة</th><th>جهة العمل</th><th>الجنسية</th><th>تاريخ الانتهاء</th>
               <th>المتبقي</th><th>الحالة</th><th></th>
             </tr>
           </thead>
           <tbody id="rows"></tbody>
         </table>
       </div>
-      <p id="empty" class="muted" hidden>لا توجد إقامات.</p>
+      <p id="empty" class="muted" hidden>لا توجد نتائج.</p>
+      <div class="pager">
+        <button id="prev" class="secondary small">السابق</button>
+        <span id="pageInfo"></span>
+        <button id="next" class="secondary small">التالي</button>
+      </div>
     </section>
   </main>
 
+  <script src="hijri.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

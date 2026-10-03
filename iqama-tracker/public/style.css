@@ -78,6 +78,16 @@ button.secondary { background: #fff; color: var(--primary); border: 1px solid va
 header button.secondary { border-color: #fff; }
 button.small { padding: 4px 10px; font-size: .85rem; }
 button.danger { background: var(--red); }
+button:disabled { opacity: .5; cursor: default; }
+label.button {
+  display: inline-block;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  background: #fff;
+  cursor: pointer;
+}
 
 .banner {
   background: var(--red-bg);
@@ -96,6 +106,9 @@ button.danger { background: var(--red); }
   margin-bottom: 16px;
 }
 .stat {
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -116,7 +129,7 @@ th, td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: 
 th { color: var(--muted); font-weight: 600; font-size: .9rem; }
 tr.expired { background: var(--red-bg); }
 tr.expiring { background: var(--amber-bg); }
-td .hijri { display: block; color: var(--muted); font-size: .8rem; }
+td .sub { display: block; color: var(--muted); font-size: .8rem; }
 .row-actions { display: flex; gap: 6px; }
 
 .badge { padding: 2px 10px; border-radius: 999px; font-size: .8rem; font-weight: 600; }
@@ -126,3 +139,18 @@ td .hijri { display: block; color: var(--muted); font-size: .8rem; }
 
 .error { color: var(--red); }
 .muted { color: var(--muted); }
+
+.user { opacity: .85; }
+.banner button { margin-inline-start: 8px; background: var(--red); }
+
+.date-field { display: flex; flex-direction: column; gap: 4px; font-size: .9rem; }
+.date-field > span { display: flex; flex-wrap: wrap; align-items: center; }
+.date-field .toggle { display: inline-flex; gap: 10px; margin-inline-start: 8px; font-size: .85rem; }
+.date-field .toggle label { display: inline-flex; gap: 4px; align-items: center; }
+
+.pager { display: flex; gap: 12px; align-items: center; justify-content: center; margin-top: 12px; color: var(--muted); }
+
+.login-page { display: grid; place-items: center; min-height: 100vh; padding: 16px; }
+.login-card { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 12px; }
+.login-card h1 { margin: 0 0 8px; font-size: 1.4rem; color: var(--primary); }
+.login-card label { display: flex; flex-direction: column; gap: 4px; }
