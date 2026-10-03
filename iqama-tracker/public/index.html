@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>متابعة الإقامات</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>متابعة الإقامات</h1>
+    <div class="settings">
+      <label>نبهني قبل الانتهاء بـ
+        <input id="alertDays" type="number" min="1" max="365"> يوم
+      </label>
+      <button id="saveSettings" class="secondary">حفظ</button>
+      <button id="enableNotify" class="secondary">تفعيل إشعارات المتصفح</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="alertBanner" class="banner" hidden></section>
+
+    <section class="stats">
+      <div class="stat"><span id="statTotal">0</span>إجمالي الإقامات</div>
+      <div class="stat expiring"><span id="statExpiring">0</span>قريبة من الانتهاء</div>
+      <div class="stat expired"><span id="statExpired">0</span>منتهية</div>
+      <div class="stat valid"><span id="statValid">0</span>سارية</div>
+    </section>
+
+    <section class="card">
+      <h2 id="formTitle">إضافة إقامة جديدة</h2>
+      <form id="form">
+        <input type="hidden" name="id">
+        <label>الاسم *<input name="name" required></label>
+        <label>رقم الإقامة *<input name="iqamaNumber" required inputmode="numeric"></label>
+        <label>تاريخ الانتهاء (ميلادي) *<input name="expiryDate" type="date" required></label>
+        <label>الجنسية<input name="nationality"></label>
+        <label>رقم الجوال<input name="phone" type="tel"></label>
+        <label>جهة العمل / الكفيل<input name="employer"></label>
+        <label class="wide">ملاحظات<textarea name="notes" rows="2"></textarea></label>
+        <div class="actions wide">
+          <button type="submit" id="submitBtn">إضافة</button>
+          <button type="button" id="cancelEdit" class="secondary" hidden>إلغاء التعديل</button>
+        </div>
+      </form>
+      <p id="formError" class="error" hidden></p>
+    </section>
+
+    <section class="card">
+      <div class="toolbar">
+        <h2>قائمة الإقامات</h2>
+        <input id="search" type="search" placeholder="بحث بالاسم أو رقم الإقامة...">
+        <select id="filter">
+          <option value="all">الكل</option>
+          <option value="expiring">قريبة من الانتهاء</option>
+          <option value="expired">منتهية</option>
+          <option value="valid">سارية</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>الاسم</th><th>رقم الإقامة</th><th>الجنسية</th><th>تاريخ الانتهاء</th>
+              <th>المتبقي</th><th>الحالة</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <p id="empty" class="muted" hidden>لا توجد إقامات.</p>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

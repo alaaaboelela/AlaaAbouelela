@@ -1,0 +1,11 @@
+{
+  "name": "iqama-tracker",
+  "version": "1.0.0",
+  "description": "صفحة ويب لمتابعة الإقامات مع تنبيه عند قرب انتهائها",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=18" }
+}
