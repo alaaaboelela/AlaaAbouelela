@@ -175,6 +175,28 @@ router.get('/stats', async (req, res) => {
   res.json({ alertDays, ...rows[0] });
 });
 
+// عدد الإقامات التي تنتهي في كل شهر من الأشهر الـ 12 القادمة
+router.get('/stats/monthly', async (req, res) => {
+  const monthStart = `${today().slice(0, 7)}-01`;
+  const months = [];
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(monthStart + 'T00:00:00Z');
+    d.setUTCMonth(d.getUTCMonth() + i);
+    months.push(d.toISOString().slice(0, 7));
+  }
+  const end = new Date(monthStart + 'T00:00:00Z');
+  end.setUTCMonth(end.getUTCMonth() + 12);
+
+  const { rows } = await pool.query(
+    `SELECT to_char(expiry_date, 'YYYY-MM') AS month, count(*)::int AS count
+     FROM residencies WHERE expiry_date >= $1::date AND expiry_date < $2::date
+     GROUP BY 1`,
+    [monthStart, end.toISOString().slice(0, 10)],
+  );
+  const counts = Object.fromEntries(rows.map((r) => [r.month, r.count]));
+  res.json(months.map((month) => ({ month, count: counts[month] || 0 })));
+});
+
 // ---------- تصدير / استيراد ----------
 
 const EXPORT_HEADER = ['الاسم', 'رقم الإقامة', 'تاريخ الانتهاء', 'تاريخ الانتهاء هجري', 'الجنسية', 'الجوال', 'جهة العمل', 'ملاحظات', 'الأيام المتبقية'];

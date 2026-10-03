@@ -24,7 +24,11 @@ function createApp() {
   app.post('/api/logout', auth.logout);
 
   app.use('/api', auth.requireAuth);
-  app.get('/api/me', (req, res) => res.json({ username: req.user.name }));
+  app.get('/api/me', (req, res) => res.json({
+    username: req.user.name,
+    emailEnabled: alerts.emailEnabled(),
+    alertEmails: config.alertEmails,
+  }));
   app.use('/api', residencies);
 
   app.get('/api/alerts', async (req, res) => {

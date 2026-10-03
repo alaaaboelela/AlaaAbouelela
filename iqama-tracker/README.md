@@ -8,7 +8,14 @@
 - **الباك اند:** Node.js 20.12+ و Express 5
 - **قاعدة البيانات:** PostgreSQL 13+ (مع إضافة `pg_trgm` للبحث السريع)
 - **الإيميل:** Nodemailer (أي SMTP: Office 365 / Gmail / Zoho ...)
-- **الواجهة:** HTML + JavaScript بدون framework، عربي RTL
+- **الواجهة:** HTML + CSS + JavaScript بدون framework، عربي RTL، خط IBM Plex Sans Arabic
+
+## الواجهة
+
+- صفحة دخول بتصميم احترافي وحركات (بطاقات عائمة، خلفية متحركة، حقول بعناوين متحركة، اهتزاز عند الخطأ، انتقال سلس بعد الدخول).
+- لوحة متابعة: مؤشرات بعدّاد متحرك، رسم بياني للإقامات المنتهية في الـ 12 شهرًا القادمة، وقائمة الأقرب انتهاءً.
+- قائمة جانبية، نوافذ منبثقة للإضافة والتعديل والحذف، وإشعارات منبثقة.
+- وضع فاتح وداكن، ومتوافقة مع الجوال، وتحترم إعداد "تقليل الحركة" في الجهاز.
 
 ## المميزات
 
@@ -72,6 +79,7 @@ sudo -u postgres psql -d iqama -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
 | POST | `/api/residencies` | إضافة (`expiryDate` أو `expiryDateHijri`) |
 | GET / PUT / DELETE | `/api/residencies/:id` | عرض / تعديل / حذف |
 | GET | `/api/stats` | الأعداد حسب الحالة |
+| GET | `/api/stats/monthly` | عدد الإقامات المنتهية في كل شهر من الـ 12 شهرًا القادمة |
 | GET | `/api/residencies/export.csv` | تصدير (يقبل نفس الفلاتر) |
 | POST | `/api/residencies/import` | استيراد CSV (نص الملف في الـ body) |
 | GET | `/api/alerts` | الإقامات اللي في التنبيه |

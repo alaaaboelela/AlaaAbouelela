@@ -94,6 +94,12 @@ test('API', { skip: !TEST_DB && 'TEST_DATABASE_URL غير مضبوط' }, async (
       { total: 3, expired: 1, expiring: 1, valid: 1, withinWeek: 0 },
     );
 
+    const monthly = (await call('/api/stats/monthly')).data;
+    assert.equal(monthly.length, 12);
+    assert.equal(monthly[0].month, isoInDays(0).slice(0, 7));
+    // أحمد (بعد 10 أيام) وسارة (بعد 200 يوم) داخل الـ 12 شهرًا، ومحمد المنتهي خارجها
+    assert.equal(monthly.reduce((sum, m) => sum + m.count, 0), 2);
+
     const expiring = (await call('/api/residencies?status=expiring')).data;
     assert.deepEqual(expiring.items.map((r) => r.name), ['أحمد']);
 
