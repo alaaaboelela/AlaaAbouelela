@@ -1,6 +1,6 @@
 // إنشاء مستخدم أو تغيير كلمة مروره:
 //   npm run create-user -- <اسم المستخدم> <كلمة المرور>
-const { pool, migrate } = require('../src/db');
+const { pool, migrate, describeDbError } = require('../src/db');
 const { hashPassword } = require('../src/auth');
 
 async function main() {
@@ -21,7 +21,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error(err.message);
+    console.error('خطأ:', describeDbError(err));
     process.exitCode = 1;
   })
   .finally(() => pool.end());

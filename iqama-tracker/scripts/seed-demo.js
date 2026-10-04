@@ -1,5 +1,5 @@
 // بيانات تجريبية للعقود، بطاقات السائقين، السيارات، السلف، العهد: npm run seed-demo
-const { pool, migrate } = require('../src/db');
+const { pool, migrate, describeDbError } = require('../src/db');
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 const rand = (min, max) => Math.floor(min + Math.random() * (max - min + 1));
@@ -97,7 +97,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error(err.message);
+    console.error('خطأ:', describeDbError(err));
     process.exitCode = 1;
   })
   .finally(() => pool.end());

@@ -1,7 +1,7 @@
 const path = require('path');
 const express = require('express');
 const config = require('./config');
-const { migrate } = require('./db');
+const { migrate, describeDbError } = require('./db');
 const auth = require('./auth');
 const { router: residencies } = require('./residencies');
 const { router: modules } = require('./crud');
@@ -68,7 +68,7 @@ if (require.main === module) {
       });
     })
     .catch((err) => {
-      console.error('تعذر الاتصال بقاعدة البيانات:', err.message);
+      console.error('تعذر الاتصال بقاعدة البيانات:', describeDbError(err));
       process.exit(1);
     });
 }

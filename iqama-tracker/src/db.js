@@ -34,3 +34,18 @@ async function setSetting(key, value) {
 }
 
 module.exports = { pool, migrate, getAlertDays, getSetting, setSetting };
+
+// رسالة واضحة لأخطاء الاتصال بقاعدة البيانات
+function describeDbError(err) {
+  const inner = err.errors?.[0] || err;
+  const code = inner.code || err.code;
+  if (code === 'ECONNREFUSED') {
+    return 'PostgreSQL غير شغال أو يعمل على بورت مختلف. شغّلي خدمة PostgreSQL وتأكدي من البورت في DATABASE_URL';
+  }
+  if (code === '28P01') return 'كلمة مرور قاعدة البيانات غير صحيحة (راجعي DATABASE_URL في ملف .env)';
+  if (code === '3D000') return 'قاعدة البيانات غير موجودة، أنشئيها بالأمر: CREATE DATABASE iqama;';
+  if (code === 'ENOTFOUND') return 'عنوان خادم قاعدة البيانات غير صحيح';
+  return `${inner.message || err.message || 'خطأ غير معروف'}${code ? ` (${code})` : ''}`;
+}
+
+module.exports.describeDbError = describeDbError;

@@ -1,5 +1,5 @@
 // بيانات تجريبية لاختبار الأداء: npm run seed -- 100000
-const { pool, migrate } = require('../src/db');
+const { pool, migrate, describeDbError } = require('../src/db');
 
 const FIRST = ['محمد', 'أحمد', 'علي', 'خالد', 'عمر', 'يوسف', 'إبراهيم', 'حسن', 'سارة', 'فاطمة', 'مريم', 'نور'];
 const LAST = ['عبدالله', 'حسين', 'السيد', 'محمود', 'إسماعيل', 'رحمن', 'خان', 'سانتوس', 'كومار', 'نصر'];
@@ -37,7 +37,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error(err.message);
+    console.error('خطأ:', describeDbError(err));
     process.exitCode = 1;
   })
   .finally(() => pool.end());
