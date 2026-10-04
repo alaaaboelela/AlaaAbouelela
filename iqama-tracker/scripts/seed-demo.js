@@ -82,6 +82,16 @@ async function main() {
         Math.random() < 0.3 ? day(-rand(1, 9)) : null],
     );
   }
+  const r = () => rand(2, 5);
+  for (let i = 0; i < 20; i++) {
+    await pool.query(
+      `INSERT INTO evaluations (employee_id, evaluation_date, period, evaluator, quality, commitment, behavior, teamwork, productivity, recommendation, strengths, improvements)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [emp(), day(-rand(1, 300)), pick(['شهري', 'ربع سنوي', 'سنوي']), pick(['م. أحمد', 'أ. فهد', 'م. خالد']),
+        r(), r(), r(), r(), r(), pick(['تجديد العقد', 'مكافأة', 'تدريب', 'لا يوجد']),
+        pick(['ملتزم بالمواعيد', 'سريع في الإنجاز', 'متعاون مع الفريق', '']), pick(['تحسين التواصل', 'الالتزام بالسلامة', ''])],
+    );
+  }
   console.log('تمت إضافة البيانات التجريبية');
 }
 

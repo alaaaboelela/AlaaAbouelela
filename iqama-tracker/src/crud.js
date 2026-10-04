@@ -37,6 +37,10 @@ function validateFields(fields, body) {
         if (f.type === 'money') v = Math.round(v * 100) / 100;
         break;
       }
+      case 'rating':
+        v = s === '' ? null : Number(s);
+        if (v !== null && !(Number.isInteger(v) && v >= 1 && v <= 5)) errors.push(`${f.label}: التقييم من 1 إلى 5`);
+        break;
       case 'employee':
         v = s || null;
         if (v && !/^\d{1,18}$/.test(v)) errors.push(`${f.label}: اختيار غير صحيح`);
@@ -234,14 +238,15 @@ router.get('/employees/:id/summary', async (req, res) => {
     );
     return rows;
   };
-  const [driverCards, advances, custody, cars, docs] = await Promise.all([
+  const [driverCards, advances, custody, cars, evaluations, docs] = await Promise.all([
     section('driver_cards', 'employee_id = $ID'),
     section('advances', 'employee_id = $ID'),
     section('custody', 'employee_id = $ID'),
     section('cars', 'driver_id = $ID'),
+    section('evaluations', 'employee_id = $ID'),
     pool.query('SELECT count(*)::int AS n FROM documents WHERE entity_type = $1 AND entity_id = $2', ['residencies', id]),
   ]);
-  res.json({ driverCards, advances, custody, cars, documents: docs.rows[0].n });
+  res.json({ driverCards, advances, custody, cars, evaluations, documents: docs.rows[0].n });
 });
 
 // ---------- نظرة عامة للوحة المتابعة ----------

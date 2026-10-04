@@ -158,3 +158,27 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS documents_entity_idx ON documents (entity_type, entity_id);
+
+-- ==========================================================================
+-- تقييمات الموظفين
+-- ==========================================================================
+
+CREATE TABLE IF NOT EXISTS evaluations (
+  id              BIGSERIAL PRIMARY KEY,
+  employee_id     BIGINT NOT NULL REFERENCES residencies (id) ON DELETE CASCADE,
+  evaluation_date DATE NOT NULL,
+  period          TEXT NOT NULL DEFAULT '',
+  evaluator       TEXT NOT NULL DEFAULT '',
+  quality         SMALLINT NOT NULL CHECK (quality BETWEEN 1 AND 5),
+  commitment      SMALLINT NOT NULL CHECK (commitment BETWEEN 1 AND 5),
+  behavior        SMALLINT NOT NULL CHECK (behavior BETWEEN 1 AND 5),
+  teamwork        SMALLINT NOT NULL CHECK (teamwork BETWEEN 1 AND 5),
+  productivity    SMALLINT NOT NULL CHECK (productivity BETWEEN 1 AND 5),
+  recommendation  TEXT NOT NULL DEFAULT '',
+  strengths       TEXT NOT NULL DEFAULT '',
+  improvements    TEXT NOT NULL DEFAULT '',
+  notes           TEXT NOT NULL DEFAULT '',
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS evaluations_employee_idx ON evaluations (employee_id, evaluation_date DESC);

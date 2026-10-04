@@ -255,6 +255,56 @@ const MODULES = {
     title: 'item_name',
     totals: { value: "sum(t.value * t.quantity) FILTER (WHERE t.returned_date IS NULL)" },
   },
+  evaluations: {
+    label: 'التقييمات',
+    singular: 'تقييم',
+    icon: 'star',
+    group: 'people',
+    table: 'evaluations',
+    from: 'evaluations t JOIN residencies e ON e.id = t.employee_id',
+    fields: [
+      { name: 'employee_id', label: 'الموظف', type: 'employee', required: true, wide: true },
+      { name: 'evaluation_date', label: 'تاريخ التقييم', type: 'date', required: true, defaultToday: true },
+      { name: 'period', label: 'فترة التقييم', type: 'select', options: ['شهري', 'ربع سنوي', 'نصف سنوي', 'سنوي', 'نهاية فترة التجربة'] },
+      { name: 'evaluator', label: 'المُقيّم', type: 'text', placeholder: 'اسم المشرف أو المدير' },
+      { name: 'quality', label: 'جودة العمل', type: 'rating', required: true },
+      { name: 'commitment', label: 'الالتزام والحضور', type: 'rating', required: true },
+      { name: 'behavior', label: 'السلوك والانضباط', type: 'rating', required: true },
+      { name: 'teamwork', label: 'العمل الجماعي', type: 'rating', required: true },
+      { name: 'productivity', label: 'الإنتاجية', type: 'rating', required: true },
+      { name: 'recommendation', label: 'التوصية', type: 'select', wide: true,
+        options: ['تجديد العقد', 'مكافأة', 'ترقية', 'زيادة راتب', 'تدريب', 'إنذار', 'عدم التجديد', 'لا يوجد'] },
+      { name: 'strengths', label: 'نقاط القوة', type: 'textarea' },
+      { name: 'improvements', label: 'نقاط تحتاج تحسين', type: 'textarea' },
+      { name: 'notes', label: 'ملاحظات', type: 'textarea' },
+    ],
+    extra: () => `e.name AS employee_name, e.iqama_number AS employee_iqama,
+      round((t.quality + t.commitment + t.behavior + t.teamwork + t.productivity) / 5.0, 1)::float AS score`,
+    status: () => `CASE
+      WHEN (t.quality + t.commitment + t.behavior + t.teamwork + t.productivity) >= 22.5 THEN 'excellent'
+      WHEN (t.quality + t.commitment + t.behavior + t.teamwork + t.productivity) >= 17.5 THEN 'very_good'
+      WHEN (t.quality + t.commitment + t.behavior + t.teamwork + t.productivity) >= 12.5 THEN 'good'
+      ELSE 'weak' END`,
+    statuses: {
+      excellent: { label: 'ممتاز', tone: 'valid' },
+      very_good: { label: 'جيد جدًا', tone: 'valid' },
+      good: { label: 'جيد', tone: 'expiring' },
+      weak: { label: 'ضعيف', tone: 'expired' },
+    },
+    search: ['e.name', 'e.iqama_number', 't.evaluator', 't.period'],
+    sort: 'evaluation_date DESC, id DESC',
+    columns: [
+      { key: 'employee_name', type: 'person', sub: 'employee_iqama' },
+      { key: 'evaluation_date', label: 'التاريخ', type: 'date' },
+      { key: 'period', label: 'الفترة', type: 'text' },
+      { key: 'score', label: 'التقييم العام', type: 'stars' },
+      { key: 'recommendation', label: 'التوصية', type: 'text' },
+    ],
+    title: 'employee_name',
+    totals: {
+      average: 'round(avg((t.quality + t.commitment + t.behavior + t.teamwork + t.productivity) / 5.0), 1)::float',
+    },
+  },
 };
 
 // نسخة آمنة للواجهة (بدون SQL)

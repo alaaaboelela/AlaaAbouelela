@@ -24,7 +24,7 @@ test('الأقسام', { skip: !TEST_DB && 'TEST_DATABASE_URL غير مضبوط'
 
   await migrate();
   await pool.query(`TRUNCATE residencies, users, contracts, driver_cards, cars, car_events, advances,
-    advance_payments, custody, documents RESTART IDENTITY CASCADE`);
+    advance_payments, custody, documents, evaluations RESTART IDENTITY CASCADE`);
   await pool.query("UPDATE settings SET value = '30' WHERE key = 'alert_days'");
   await pool.query('INSERT INTO users (username, password_hash) VALUES ($1, $2)', ['admin', hashPassword('secret123')]);
   const { rows: [emp] } = await pool.query(
@@ -62,7 +62,7 @@ test('الأقسام', { skip: !TEST_DB && 'TEST_DATABASE_URL غير مضبوط'
 
   await t.test('المخطط يُرسل للواجهة بدون SQL', async () => {
     const { data } = await call('/schema');
-    assert.deepEqual(Object.keys(data).sort(), ['advances', 'cars', 'contracts', 'custody', 'driver_cards']);
+    assert.deepEqual(Object.keys(data).sort(), ['advances', 'cars', 'contracts', 'custody', 'driver_cards', 'evaluations']);
     assert.equal(JSON.stringify(data).includes('SELECT'), false);
   });
 
@@ -171,6 +171,24 @@ test('الأقسام', { skip: !TEST_DB && 'TEST_DATABASE_URL غير مضبوط'
     assert.equal((await call(`/m/contracts/${contract.id}`, 'DELETE')).status, 204);
     assert.equal(fs.readdirSync(process.env.UPLOAD_DIR).length, 0);
     assert.deepEqual((await call(`/documents?entity=contracts&id=${contract.id}`)).data, []);
+  });
+
+  await t.test('التقييمات', async () => {
+    const base = { employee_id: emp.id, evaluation_date: isoInDays(0), period: 'شهري' };
+    assert.equal((await call('/m/evaluations', 'POST', { ...base, quality: 6, commitment: 5, behavior: 5, teamwork: 5, productivity: 5 })).status, 400);
+    assert.equal((await call('/m/evaluations', 'POST', { ...base, quality: 5 })).status, 400);
+
+    const top = (await call('/m/evaluations', 'POST', { ...base, quality: 5, commitment: 5, behavior: 4, teamwork: 5, productivity: 5, recommendation: 'مكافأة' })).data;
+    assert.equal(top.score, 4.8);
+    assert.equal(top.status, 'excellent');
+    const low = (await call('/m/evaluations', 'POST', { ...base, employee_id: emp2.id, quality: 2, commitment: 1, behavior: 3, teamwork: 2, productivity: 2 })).data;
+    assert.equal(low.score, 2);
+    assert.equal(low.status, 'weak');
+
+    const list = (await call('/m/evaluations')).data;
+    assert.deepEqual(list.counts, { excellent: 1, very_good: 0, good: 0, weak: 1, total: 2 });
+    assert.equal(list.totals.average, 3.4);
+    assert.equal((await call(`/employees/${emp.id}/summary`)).data.evaluations.length, 1);
   });
 
   await t.test('النظرة العامة', async () => {

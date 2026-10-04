@@ -12,11 +12,24 @@ const Modules = (() => {
     cars: 'أسطول السيارات، الصيانة، وسجل التحديثات',
     advances: 'السلف المصروفة للموظفين والدفعات المسددة',
     custody: 'العهد المسلّمة للموظفين وحالة إرجاعها',
+    evaluations: 'تقييم أداء الموظفين ومتابعة تطورهم',
   };
 
   const todayIso = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riyadh' }).format(new Date());
   const money = (v) => (v == null || v === '' ? '—' : `${fmt(Number(v))} ر.س`);
   const dateCell = (v) => (v ? `${esc(fmtGregorian(v, 'short'))}<span class="sub">${esc(fmtHijri(v))}</span>` : '<span class="muted">—</span>');
+
+  // عرض التقييم بالنجوم (يدعم الأنصاف)
+  function stars(score, withNumber = true) {
+    if (score == null) return '<span class="muted">—</span>';
+    const n = Number(score);
+    let html = '';
+    for (let i = 1; i <= 5; i++) {
+      const fill = Math.max(0, Math.min(1, n - i + 1));
+      html += `<span class="star">${icon('star-fill', 'icon-sm')}<span class="star-on" style="width:${Math.round(fill * 100)}%">${icon('star-fill', 'icon-sm')}</span></span>`;
+    }
+    return `<span class="stars" title="${n} من 5">${html}</span>${withNumber ? `<b class="score">${n.toFixed(1)}</b>` : ''}`;
+  }
 
   function statusPill(m, status) {
     const s = m.statuses[status];
@@ -45,6 +58,8 @@ const Modules = (() => {
         return v ? `<span class="mono">${esc(v)}</span>` : '<span class="muted">—</span>';
       case 'money':
         return money(v);
+      case 'stars':
+        return `<span class="stars-cell">${stars(v)}</span>`;
       case 'date':
         return dateCell(v);
       case 'days':
@@ -130,6 +145,7 @@ const Modules = (() => {
         <span class="total-chip warn">المتبقي للتحصيل <b>${money(t.remaining)}</b></span>`;
     }
     if (key === 'custody') return `<span class="total-chip">قيمة العهد لدى الموظفين <b>${money(t.value)}</b></span>`;
+    if (key === 'evaluations' && t.average) return `<span class="total-chip">متوسط التقييمات <b>${Number(t.average).toFixed(1)} / 5</b></span>`;
     return '';
   }
 
@@ -200,6 +216,12 @@ const Modules = (() => {
       case 'int':
         input = `<input class="input" name="${f.name}" inputmode="numeric" value="${esc(v)}"${ph}>`;
         break;
+      case 'rating':
+        input = `<div class="rating-input" role="radiogroup" aria-label="${esc(f.label)}">
+          ${[5, 4, 3, 2, 1].map((n) => `<input type="radio" id="r-${f.name}-${n}" name="${f.name}" value="${n}"${Number(v) === n ? ' checked' : ''}>
+          <label for="r-${f.name}-${n}" title="${n} من 5">${icon('star-fill')}</label>`).join('')}
+          <span class="rating-text">${RATING_TEXT[v] || 'اختر التقييم'}</span></div>`;
+        break;
       case 'employee':
         input = `<div class="combo" data-combo="${f.name}">
           <div class="input-icon"><svg class="icon"><use href="icons.svg#i-search"/></svg>
@@ -213,7 +235,14 @@ const Modules = (() => {
     return `<label class="${cls}"><span>${esc(f.label)}${req}</span>${input}</label>`;
   }
 
+  const RATING_TEXT = { 1: 'ضعيف', 2: 'مقبول', 3: 'جيد', 4: 'جيد جدًا', 5: 'ممتاز' };
+
   function bindFormExtras(root) {
+    for (const group of $$('.rating-input', root)) {
+      group.addEventListener('change', (e) => {
+        group.querySelector('.rating-text').textContent = RATING_TEXT[e.target.value];
+      });
+    }
     // التاريخ الهجري المقابل
     for (const input of $$('input[type=date]', root)) {
       const hint = root.querySelector(`[data-hijri-for="${input.name}"]`);
@@ -352,6 +381,7 @@ const Modules = (() => {
       let html;
       if (v == null || v === '') html = '<span class="muted">—</span>';
       else if (f.type === 'money') html = money(v);
+      else if (f.type === 'rating') html = `<span class="stars-cell">${stars(v, false)} <small class="muted">${RATING_TEXT[v]}</small></span>`;
       else if (f.type === 'date') html = dateCell(v);
       else if (f.type === 'int' && f.name !== 'year') html = fmt(v);
       else html = `<span class="${f.mono ? 'mono' : ''}" style="white-space:pre-line">${esc(v)}</span>`;
@@ -386,6 +416,11 @@ const Modules = (() => {
         <div><small>المسدد</small><b class="ok">${money(r.paid)}</b></div>
         <div><small>المتبقي</small><b class="warn">${money(r.remaining)}</b></div>
         <div class="bar"><span style="width:${pct}%"></span></div></div>`;
+    }
+    if (key === 'evaluations') {
+      extra = `<div class="summary-strip score-strip">
+        <div><small>التقييم العام</small><b class="big">${Number(r.score).toFixed(1)}<small> / 5</small></b></div>
+        <div class="wide-cell">${stars(r.score, false)}<small>${esc(m.statuses[r.status].label)}</small></div></div>`;
     }
     if (key === 'cars') {
       extra = `<div class="summary-strip">
@@ -570,6 +605,7 @@ const Modules = (() => {
         <div><small>الإقامة</small><b class="${r.status === 'valid' ? 'ok' : 'warn'}">${remainingText(r.daysLeft)}</b></div>
         <div><small>سلف متبقية</small><b class="${remaining ? 'warn' : ''}">${money(remaining)}</b></div>
         <div><small>عهد لديه</small><b>${fmt(held.length)}</b></div>
+        ${s.evaluations.length ? `<div><small>آخر تقييم</small><b>${Number(s.evaluations[0].score).toFixed(1)} / 5</b></div>` : ''}
       </div>
       <section class="d-section"><h3>${icon('card', 'icon-sm')}بيانات الإقامة</h3>
         <dl class="details">
@@ -582,6 +618,7 @@ const Modules = (() => {
       ${list('driver_cards', s.driverCards, (x) => `<div><strong class="mono">${esc(x.card_number)}</strong><small class="muted">تنتهي ${esc(fmtGregorian(x.expiry_date, 'short'))}</small></div>`)}
       ${list('advances', s.advances, (x) => `<div><strong>${money(x.amount)}</strong><small class="muted">متبقي ${money(x.remaining)} · ${esc(fmtGregorian(x.issue_date, 'short'))}</small></div>`)}
       ${list('custody', s.custody, (x) => `<div><strong>${esc(x.item_name)}</strong><small class="muted">${x.value != null ? money(x.value) + ' · ' : ''}${esc(fmtGregorian(x.handed_date, 'short'))}</small></div>`)}
+      ${list('evaluations', s.evaluations, (x) => `<div><strong class="stars-cell">${stars(x.score)}</strong><small class="muted">${esc(fmtGregorian(x.evaluation_date, 'short'))}${x.period ? ` · ${esc(x.period)}` : ''}${x.recommendation ? ` · ${esc(x.recommendation)}` : ''}</small></div>`)}
       ${list('cars', s.cars, (x) => `<div><strong class="plate sm">${esc(x.plate_number)}</strong><small class="muted">${esc([x.make, x.model].filter(Boolean).join(' '))}</small></div>`)}
       <section class="d-section" id="dDocs"></section>`;
 
@@ -626,6 +663,8 @@ const Modules = (() => {
       tile('cars', fmt(c('cars').attention + c('cars').expired), `من ${fmt(c('cars').total)} سيارة تحتاج متابعة`, c('cars').attention + c('cars').expired ? 'warn' : 'ok'),
       tile('advances', money(o.advances.totals.remaining), `${fmt(c('advances').open)} سلفة قائمة`, c('advances').open ? 'info' : 'ok'),
       tile('custody', fmt(c('custody').held), `بقيمة ${money(o.custody.totals.value)}`, 'info'),
+      tile('evaluations', o.evaluations.totals.average ? `${Number(o.evaluations.totals.average).toFixed(1)} / 5` : '—',
+        `${fmt(c('evaluations').total)} تقييم · ضعيف ${fmt(c('evaluations').weak)}`, c('evaluations').weak ? 'warn' : 'ok'),
     ].join('');
 
     for (const el of $$('[data-badge]')) {

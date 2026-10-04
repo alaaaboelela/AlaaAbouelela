@@ -1024,7 +1024,7 @@ tr.clickable { cursor: pointer; }
 .combo-list small { color: var(--muted); font-size: 12px; }
 
 /* ملخص الأقسام في لوحة المتابعة */
-.overview { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+.overview { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
 .ov-tile {
   display: flex;
   gap: 12px;
@@ -1209,6 +1209,30 @@ body.drawer-open { overflow: hidden; }
 .empty-docs { justify-content: center; }
 
 body.drawer-open .toasts { inset-inline-end: auto; inset-inline-start: 24px; }
+
+/* التقييم بالنجوم */
+.stars { display: inline-flex; gap: 1px; vertical-align: middle; direction: ltr; }
+.star { position: relative; display: inline-flex; color: var(--border-strong); }
+.star-on { position: absolute; inset-block: 0; left: 0; overflow: hidden; color: #f0a83a; display: inline-flex; }
+.star .icon-sm { width: 15px; height: 15px; flex: none; }
+.stars-cell { display: inline-flex; align-items: center; gap: 6px; }
+.stars-cell .score { font-size: 13.5px; }
+
+.rating-input { display: flex; flex-direction: row-reverse; justify-content: flex-end; align-items: center; gap: 2px; direction: ltr; }
+.rating-input input { position: absolute; opacity: 0; pointer-events: none; }
+.rating-input label { cursor: pointer; color: var(--border-strong); transition: color .15s, transform .15s var(--ease); }
+.rating-input label .icon { width: 26px; height: 26px; }
+.rating-input label:hover { transform: scale(1.15); }
+.rating-input input:checked ~ label,
+.rating-input label:hover,
+.rating-input label:hover ~ label { color: #f0a83a; }
+.rating-input input:focus-visible + label { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 4px; }
+.rating-input .rating-text { order: -1; margin-inline-start: 10px; font-size: 12.5px; color: var(--muted); direction: rtl; }
+.score-strip { grid-template-columns: auto 1fr; align-items: center; }
+.score-strip .big { font-size: 28px; }
+.score-strip .big small { display: inline; font-size: 14px; color: var(--muted); }
+.score-strip .wide-cell { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.score-strip .stars .icon-sm { width: 22px; height: 22px; }
 
 @keyframes bob { 50% { transform: translateY(-4px); } }
 
