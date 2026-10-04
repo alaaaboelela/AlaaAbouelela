@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>منصة الإقامات</title>
+  <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="style.css">
+  <script src="theme.js"></script>
+</head>
+<body>
+  <div class="app">
+    <!-- القائمة الجانبية -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <span class="brand-mark"><svg class="icon"><use href="icons.svg#i-logo"/></svg></span>
+        <div><strong>منصة الإقامات</strong><small>نظام المتابعة والتنبيهات</small></div>
+      </div>
+      <nav class="nav">
+        <span class="nav-label">الرئيسية</span>
+        <a href="#dashboard" data-view="dashboard"><svg class="icon"><use href="icons.svg#i-dashboard"/></svg>لوحة المتابعة</a>
+        <span class="nav-label">الموظفين</span>
+        <a href="#residencies" data-view="residencies"><svg class="icon"><use href="icons.svg#i-card"/></svg>الإقامات<span class="nav-badge" id="navBadge" title="قريبة من الانتهاء"></span></a>
+        <a href="#driver_cards" data-view="driver_cards"><svg class="icon"><use href="icons.svg#i-steering"/></svg>بطاقات السائقين<span class="nav-badge" data-badge="driver_cards"></span></a>
+        <a href="#advances" data-view="advances"><svg class="icon"><use href="icons.svg#i-wallet"/></svg>السلف</a>
+        <a href="#custody" data-view="custody"><svg class="icon"><use href="icons.svg#i-box"/></svg>العهد</a>
+        <a href="#evaluations" data-view="evaluations"><svg class="icon"><use href="icons.svg#i-star"/></svg>التقييمات</a>
+        <span class="nav-label">الشركة</span>
+        <a href="#contracts" data-view="contracts"><svg class="icon"><use href="icons.svg#i-contract"/></svg>العقود<span class="nav-badge" data-badge="contracts"></span></a>
+        <a href="#cars" data-view="cars"><svg class="icon"><use href="icons.svg#i-car"/></svg>السيارات<span class="nav-badge" data-badge="cars"></span></a>
+        <span class="nav-label">النظام</span>
+        <a href="#settings" data-view="settings"><svg class="icon"><use href="icons.svg#i-settings"/></svg>الإعدادات</a>
+      </nav>
+      <div class="sidebar-foot">
+        <span class="avatar" id="avatar"></span>
+        <div class="who"><strong id="username">—</strong><small>مسؤول النظام</small></div>
+        <button class="icon-btn" id="logout" type="button" title="تسجيل الخروج" aria-label="تسجيل الخروج">
+          <svg class="icon"><use href="icons.svg#i-logout"/></svg>
+        </button>
+      </div>
+    </aside>
+    <div class="scrim" id="scrim"></div>
+
+    <div class="main">
+      <header class="topbar" id="topbar">
+        <button class="icon-btn bordered menu-btn" id="menuBtn" type="button" aria-label="القائمة">
+          <svg class="icon"><use href="icons.svg#i-menu"/></svg>
+        </button>
+        <div class="titles">
+          <h1 id="viewTitle">لوحة المتابعة</h1>
+          <p id="viewSubtitle"></p>
+        </div>
+        <div class="topbar-actions">
+          <button class="icon-btn bordered" id="themeBtn" type="button" aria-label="تبديل الوضع الليلي" title="تبديل الوضع الليلي">
+            <svg class="icon"><use id="themeIcon" href="icons.svg#i-moon"/></svg>
+          </button>
+          <button class="btn btn-primary" id="addBtn" type="button">
+            <svg class="icon"><use href="icons.svg#i-plus"/></svg><span class="add-label">إضافة إقامة</span>
+          </button>
+        </div>
+      </header>
+
+      <div class="content">
+        <!-- لوحة المتابعة -->
+        <section class="view" id="view-dashboard">
+          <div class="banner" id="banner" hidden>
+            <span class="pulse"><svg class="icon"><use href="icons.svg#i-bell"/></svg></span>
+            <div class="text"><strong id="bannerTitle"></strong><span id="bannerText"></span></div>
+            <button class="btn btn-ghost btn-sm" data-go-status="expiring" type="button">عرض القائمة</button>
+          </div>
+
+          <div class="kpis">
+            <button class="kpi total" data-go-status="all" type="button">
+              <div class="kpi-top"><span class="kpi-label">إجمالي الإقامات</span><span class="kpi-icon"><svg class="icon"><use href="icons.svg#i-card"/></svg></span></div>
+              <div class="kpi-value" data-kpi="total">0</div>
+              <div class="kpi-meta">جميع الإقامات المسجلة</div>
+              <span class="bar"></span>
+            </button>
+            <button class="kpi expiring" data-go-status="expiring" type="button">
+              <div class="kpi-top"><span class="kpi-label">قريبة من الانتهاء</span><span class="kpi-icon"><svg class="icon"><use href="icons.svg#i-clock"/></svg></span></div>
+              <div class="kpi-value" data-kpi="expiring">0</div>
+              <div class="kpi-meta" id="expiringMeta">&nbsp;</div>
+              <span class="bar"></span>
+            </button>
+            <button class="kpi expired" data-go-status="expired" type="button">
+              <div class="kpi-top"><span class="kpi-label">منتهية</span><span class="kpi-icon"><svg class="icon"><use href="icons.svg#i-x-circle"/></svg></span></div>
+              <div class="kpi-value" data-kpi="expired">0</div>
+              <div class="kpi-meta">تحتاج تجديدًا فوريًا</div>
+              <span class="bar"></span>
+            </button>
+            <button class="kpi valid" data-go-status="valid" type="button">
+              <div class="kpi-top"><span class="kpi-label">سارية</span><span class="kpi-icon"><svg class="icon"><use href="icons.svg#i-check"/></svg></span></div>
+              <div class="kpi-value" data-kpi="valid">0</div>
+              <div class="kpi-meta" id="validMeta">&nbsp;</div>
+              <span class="bar"></span>
+            </button>
+          </div>
+
+          <div class="overview" id="overview" aria-label="ملخص الأقسام"></div>
+
+          <div class="dash-grid">
+            <div class="card">
+              <div class="card-head">
+                <div>
+                  <h2 class="card-title">الإقامات المنتهية خلال الـ 12 شهرًا القادمة</h2>
+                  <p class="card-sub">عدد الإقامات التي ينتهي تاريخها في كل شهر</p>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="chart" id="chart">
+                  <div class="tooltip" id="tooltip"></div>
+                </div>
+                <table class="sr-only" id="chartTable"><caption>الإقامات المنتهية حسب الشهر</caption><tbody></tbody></table>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-head">
+                <div>
+                  <h2 class="card-title">الأقرب انتهاءً</h2>
+                  <p class="card-sub">إقامات تحتاج إلى متابعة عاجلة</p>
+                </div>
+                <a class="btn btn-ghost btn-sm" href="#residencies" data-go-status="expiring">عرض الكل</a>
+              </div>
+              <div class="card-body"><ul class="upcoming" id="upcoming"></ul></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- الإقامات -->
+        <section class="view" id="view-residencies">
+          <div class="card">
+            <div class="list-head">
+              <div>
+                <h2 class="card-title">سجل الإقامات</h2>
+                <p class="card-sub" id="listSub">&nbsp;</p>
+              </div>
+              <div class="actions">
+                <button class="btn btn-ghost" id="importBtn" type="button"><svg class="icon"><use href="icons.svg#i-upload"/></svg>استيراد</button>
+                <button class="btn btn-ghost" id="exportBtn" type="button"><svg class="icon"><use href="icons.svg#i-download"/></svg>تصدير Excel</button>
+                <input id="importFile" type="file" accept=".csv,text/csv" hidden>
+              </div>
+            </div>
+            <div class="toolbar">
+              <div class="input-icon search">
+                <svg class="icon"><use href="icons.svg#i-search"/></svg>
+                <input class="input" id="search" type="search" placeholder="ابحث بالاسم أو رقم الإقامة أو جهة العمل" aria-label="بحث">
+              </div>
+              <div class="segmented" id="statusFilter" role="group" aria-label="فلترة حسب الحالة">
+                <button type="button" data-status="all" aria-pressed="true">الكل <span class="count" data-count="total"></span></button>
+                <button type="button" data-status="expiring" aria-pressed="false">قريبة <span class="count" data-count="expiring"></span></button>
+                <button type="button" data-status="expired" aria-pressed="false">منتهية <span class="count" data-count="expired"></span></button>
+                <button type="button" data-status="valid" aria-pressed="false">سارية <span class="count" data-count="valid"></span></button>
+              </div>
+              <span class="spacer"></span>
+              <select class="input" id="sort" aria-label="الترتيب">
+                <option value="expiry">الأقرب انتهاءً</option>
+                <option value="-expiry">الأبعد انتهاءً</option>
+                <option value="name">الاسم</option>
+                <option value="newest">الأحدث إضافة</option>
+              </select>
+            </div>
+            <div class="import-result" id="importResult" hidden></div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>الموظف</th><th>رقم الإقامة</th><th>جهة العمل</th><th>تاريخ الانتهاء</th>
+                    <th>المدة المتبقية</th><th>الحالة</th><th><span class="sr-only">إجراءات</span></th>
+                  </tr>
+                </thead>
+                <tbody id="rows"></tbody>
+              </table>
+            </div>
+            <div class="empty" id="empty" hidden>
+              <span class="empty-icon"><svg class="icon"><use href="icons.svg#i-inbox"/></svg></span>
+              <strong>لا توجد نتائج</strong>
+              <p>جرّب تغيير البحث أو الفلتر، أو أضف إقامة جديدة.</p>
+            </div>
+            <div class="pager">
+              <span id="pageInfo"></span>
+              <div class="pages">
+                <button class="btn btn-ghost btn-sm" id="prev" type="button"><svg class="icon-sm"><use href="icons.svg#i-chevron-right"/></svg>السابق</button>
+                <button class="btn btn-ghost btn-sm" id="next" type="button">التالي<svg class="icon-sm"><use href="icons.svg#i-chevron-left"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- عرض عام لأي قسم (العقود، السيارات، ...) -->
+        <section class="view" id="view-module">
+          <div class="card">
+            <div class="list-head">
+              <div>
+                <h2 class="card-title" id="mTitle"></h2>
+                <p class="card-sub" id="mSub">&nbsp;</p>
+              </div>
+              <div class="totals" id="mTotals"></div>
+            </div>
+            <div class="toolbar">
+              <div class="input-icon search">
+                <svg class="icon"><use href="icons.svg#i-search"/></svg>
+                <input class="input" id="mSearch" type="search" placeholder="بحث..." aria-label="بحث">
+              </div>
+              <div class="segmented" id="mStatus" role="group" aria-label="فلترة حسب الحالة"></div>
+              <span class="spacer"></span>
+              <select class="input" id="mSort" aria-label="الترتيب">
+                <option value="default">الترتيب الافتراضي</option>
+                <option value="newest">الأحدث إضافة</option>
+              </select>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead id="mHead"></thead>
+                <tbody id="mRows"></tbody>
+              </table>
+            </div>
+            <div class="empty" id="mEmpty" hidden>
+              <span class="empty-icon"><svg class="icon"><use href="icons.svg#i-inbox"/></svg></span>
+              <strong>لا توجد بيانات</strong>
+              <p>ابدأ بإضافة أول سجل من زر الإضافة بالأعلى.</p>
+            </div>
+            <div class="pager">
+              <span id="mPageInfo"></span>
+              <div class="pages">
+                <button class="btn btn-ghost btn-sm" id="mPrev" type="button"><svg class="icon-sm"><use href="icons.svg#i-chevron-right"/></svg>السابق</button>
+                <button class="btn btn-ghost btn-sm" id="mNext" type="button">التالي<svg class="icon-sm"><use href="icons.svg#i-chevron-left"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- الإعدادات -->
+        <section class="view" id="view-settings">
+          <div class="settings-grid">
+            <div class="card">
+              <div class="setting-head">
+                <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-bell"/></svg></span>
+                <div><h2 class="card-title">مدة التنبيه</h2><p class="card-sub">تُعتبر الإقامة "قريبة من الانتهاء" إذا بقي عليها هذا العدد من الأيام أو أقل.</p></div>
+              </div>
+              <div class="card-body">
+                <div class="inline-row">
+                  <div class="stepper">
+                    <button type="button" data-step="1" aria-label="زيادة">+</button>
+                    <input id="alertDays" type="number" min="1" max="365" aria-label="عدد الأيام">
+                    <button type="button" data-step="-1" aria-label="إنقاص">−</button>
+                  </div>
+                  <span class="card-sub">يوم</span>
+                  <button class="btn btn-primary" id="saveSettings" type="button">حفظ</button>
+                </div>
+                <div class="chips">
+                  <button type="button" data-days="15">15 يوم</button>
+                  <button type="button" data-days="30">30 يوم</button>
+                  <button type="button" data-days="60">60 يوم</button>
+                  <button type="button" data-days="90">90 يوم</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="setting-head">
+                <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-mail"/></svg></span>
+                <div><h2 class="card-title">تنبيهات البريد الإلكتروني</h2><p class="card-sub">رسالة يومية بالإقامات القريبة من الانتهاء والمنتهية حديثًا.</p></div>
+              </div>
+              <div class="card-body">
+                <div class="status-line" id="emailStatus"></div>
+                <button class="btn btn-ghost" id="sendEmail" type="button"><svg class="icon"><use href="icons.svg#i-send"/></svg>إرسال تنبيه الآن</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="setting-head">
+                <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-bell"/></svg></span>
+                <div><h2 class="card-title">إشعارات المتصفح</h2><p class="card-sub">إشعار واحد يوميًا عند فتح المنصة بعدد الإقامات القريبة من الانتهاء.</p></div>
+              </div>
+              <div class="card-body">
+                <div class="status-line" id="notifyStatus"></div>
+                <button class="btn btn-ghost" id="enableNotify" type="button">تفعيل الإشعارات</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="setting-head">
+                <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-palette"/></svg></span>
+                <div><h2 class="card-title">المظهر</h2><p class="card-sub">اختر الوضع المناسب لك.</p></div>
+              </div>
+              <div class="card-body">
+                <div class="theme-options" id="themeOptions">
+                  <button type="button" data-theme-option="light"><svg class="icon"><use href="icons.svg#i-sun"/></svg>فاتح</button>
+                  <button type="button" data-theme-option="dark"><svg class="icon"><use href="icons.svg#i-moon"/></svg>داكن</button>
+                  <button type="button" data-theme-option="system"><svg class="icon"><use href="icons.svg#i-settings"/></svg>حسب الجهاز</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="setting-head">
+                <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-file"/></svg></span>
+                <div><h2 class="card-title">قالب الاستيراد</h2><p class="card-sub">نزّل القالب، املأه في Excel، ثم احفظه بصيغة CSV UTF-8 واستورده من صفحة الإقامات.</p></div>
+              </div>
+              <div class="card-body">
+                <button class="btn btn-ghost" id="templateBtn" type="button"><svg class="icon"><use href="icons.svg#i-download"/></svg>تنزيل القالب</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- نافذة الإضافة والتعديل -->
+  <dialog id="editModal" aria-labelledby="modalTitle">
+    <form id="form" method="dialog" novalidate>
+      <div class="modal-head">
+        <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-card"/></svg></span>
+        <h2 id="modalTitle">إضافة إقامة جديدة</h2>
+        <button class="icon-btn" type="button" data-close aria-label="إغلاق"><svg class="icon"><use href="icons.svg#i-x"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" name="id">
+        <div class="form-error" id="formError" role="alert" hidden><svg class="icon"><use href="icons.svg#i-alert"/></svg><span></span></div>
+        <label class="field"><span>الاسم الكامل <b class="req">*</b></span><input class="input" name="name" required maxlength="200"></label>
+        <label class="field"><span>رقم الإقامة <b class="req">*</b></span><input class="input mono" name="iqamaNumber" required inputmode="numeric" maxlength="10" placeholder="2XXXXXXXXX"></label>
+        <div class="field wide">
+          <div class="date-head">
+            <span>تاريخ انتهاء الإقامة <b class="req">*</b></span>
+            <div class="segmented" role="group" aria-label="نوع التقويم">
+              <button type="button" data-calendar="hijri" aria-pressed="true">هجري</button>
+              <button type="button" data-calendar="gregorian" aria-pressed="false">ميلادي</button>
+            </div>
+          </div>
+          <div class="input-icon">
+            <svg class="icon"><use href="icons.svg#i-calendar"/></svg>
+            <input class="input" name="expiryDateHijri" placeholder="مثال: 1448-04-22" inputmode="numeric">
+            <input class="input" name="expiryDate" type="date" hidden>
+          </div>
+          <span class="hint" id="dateHint"></span>
+        </div>
+        <label class="field"><span>الجنسية</span><input class="input" name="nationality" maxlength="100"></label>
+        <label class="field"><span>رقم الجوال</span><input class="input mono" name="phone" type="tel" maxlength="30" placeholder="05XXXXXXXX"></label>
+        <label class="field wide"><span>جهة العمل / الكفيل</span><input class="input" name="employer" maxlength="200"></label>
+        <label class="field wide"><span>ملاحظات</span><textarea class="input" name="notes" rows="2" maxlength="2000"></textarea></label>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" type="button" data-close>إلغاء</button>
+        <button class="btn btn-primary" type="submit" id="submitBtn">حفظ</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- نافذة إضافة/تعديل لأي قسم -->
+  <dialog id="moduleModal" aria-labelledby="mModalTitle">
+    <form id="mForm" novalidate>
+      <div class="modal-head">
+        <span class="setting-icon"><svg class="icon"><use id="mModalIcon" href="icons.svg#i-file"/></svg></span>
+        <h2 id="mModalTitle"></h2>
+        <button class="icon-btn" type="button" data-close aria-label="إغلاق"><svg class="icon"><use href="icons.svg#i-x"/></svg></button>
+      </div>
+      <div class="modal-body" id="mFields"></div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" type="button" data-close>إلغاء</button>
+        <button class="btn btn-primary" type="submit" id="mSubmit">حفظ</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- الدرج الجانبي للتفاصيل والمستندات -->
+  <div class="drawer-scrim" id="drawerScrim"></div>
+  <aside class="drawer" id="drawer" aria-hidden="true" aria-labelledby="dTitle" role="dialog">
+    <div class="drawer-head">
+      <span class="setting-icon"><svg class="icon"><use id="dIcon" href="icons.svg#i-file"/></svg></span>
+      <div class="titles">
+        <h2 id="dTitle"></h2>
+        <p id="dSub"></p>
+      </div>
+      <div class="drawer-actions" id="dActions"></div>
+      <button class="icon-btn" type="button" id="dClose" aria-label="إغلاق"><svg class="icon"><use href="icons.svg#i-x"/></svg></button>
+    </div>
+    <div class="drawer-body" id="dBody"></div>
+  </aside>
+
+  <!-- نافذة تأكيد الحذف -->
+  <dialog id="confirmModal">
+    <div class="confirm-body">
+      <span class="confirm-icon"><svg class="icon"><use href="icons.svg#i-trash"/></svg></span>
+      <h2>حذف الإقامة؟</h2>
+      <p id="confirmText"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" type="button" data-close>إلغاء</button>
+      <button class="btn btn-danger" type="button" id="confirmDelete">حذف نهائي</button>
+    </div>
+  </dialog>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <script src="hijri.js"></script>
+  <script src="app.js"></script>
+  <script src="modules.js"></script>
+</body>
+</html>

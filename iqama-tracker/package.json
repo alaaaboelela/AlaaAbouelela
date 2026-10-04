@@ -1,0 +1,23 @@
+{
+  "name": "iqama-tracker",
+  "version": "2.0.0",
+  "private": true,
+  "description": "نظام متابعة الإقامات مع تنبيهات قرب الانتهاء",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "migrate": "node scripts/migrate.js",
+    "create-user": "node scripts/create-user.js",
+    "seed": "node scripts/seed.js",
+    "seed-demo": "node scripts/seed-demo.js",
+    "test": "node --test --test-concurrency=1"
+  },
+  "engines": {
+    "node": ">=20.12"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "nodemailer": "^10.0.13",
+    "pg": "^8.23.1"
+  }
+}

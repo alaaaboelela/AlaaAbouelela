@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>تسجيل الدخول — منصة الإقامات</title>
+  <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="style.css">
+  <script src="theme.js"></script>
+</head>
+<body>
+  <div class="login" id="page">
+    <!-- اللوحة التعريفية -->
+    <aside class="showcase" aria-hidden="true">
+      <span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span>
+      <span class="grid-bg"></span>
+
+      <div class="brand">
+        <span class="brand-mark"><svg class="icon"><use href="icons.svg#i-logo"/></svg></span>
+        <div><strong>منصة الإقامات</strong><small>نظام المتابعة والتنبيهات</small></div>
+      </div>
+
+      <div>
+        <div class="showcase-copy">
+          <h2>لا تفوّت موعد <span class="hl">تجديد أي إقامة</span> بعد اليوم</h2>
+          <p>تابع صلاحية إقامات جميع موظفيك من مكان واحد، واستلم التنبيهات قبل الانتهاء بوقت كافٍ.</p>
+        </div>
+
+        <div class="stage">
+          <div class="float-card iqama-card">
+            <div class="row">
+              <span class="ph"><svg class="icon"><use href="icons.svg#i-user"/></svg></span>
+              <div class="lines"><span></span><span></span><span></span></div>
+              <div class="ring">
+                <svg viewBox="0 0 58 58"><circle class="track" cx="29" cy="29" r="24"/><circle class="prog" cx="29" cy="29" r="24"/></svg>
+                <b><span>12<small>يوم</small></span></b>
+              </div>
+            </div>
+            <div class="meta">
+              <span class="num">2456 •••• 01</span>
+              <span class="chip-live"><i></i>قريبة من الانتهاء</span>
+            </div>
+          </div>
+
+          <div class="float-card done-card">
+            <svg class="icon"><use href="icons.svg#i-check"/></svg>تم تجديد 18 إقامة
+          </div>
+
+          <div class="float-card notify-card">
+            <span class="bell"><svg class="icon"><use href="icons.svg#i-bell"/></svg></span>
+            <div><strong>تنبيه: 3 إقامات تنتهي هذا الأسبوع</strong><small>أُرسل إلى الموارد البشرية · 8:00 ص</small></div>
+          </div>
+        </div>
+
+        <ul class="features">
+          <li><span class="f-icon"><svg class="icon"><use href="icons.svg#i-calendar"/></svg></span>دعم التاريخ الهجري (أم القرى) والميلادي</li>
+          <li><span class="f-icon"><svg class="icon"><use href="icons.svg#i-mail"/></svg></span>تنبيهات يومية بالبريد الإلكتروني وفي المتصفح</li>
+          <li><span class="f-icon"><svg class="icon"><use href="icons.svg#i-upload"/></svg></span>استيراد وتصدير البيانات من Excel</li>
+        </ul>
+      </div>
+
+      <p class="showcase-foot">© <span id="year"></span> منصة الإقامات — جميع الحقوق محفوظة</p>
+    </aside>
+
+    <!-- نموذج الدخول -->
+    <main class="login-panel">
+      <button class="icon-btn bordered theme-toggle" id="themeBtn" type="button" aria-label="تبديل الوضع الليلي">
+        <svg class="icon"><use id="themeIcon" href="icons.svg#i-moon"/></svg>
+      </button>
+
+      <form class="login-form" id="loginForm" novalidate>
+        <div class="mobile-brand">
+          <span class="brand-mark"><svg class="icon"><use href="icons.svg#i-logo"/></svg></span>
+          منصة الإقامات
+        </div>
+        <div>
+          <h1>مرحبًا بعودتك 👋</h1>
+          <p class="lead">سجّل الدخول للوصول إلى لوحة متابعة الإقامات</p>
+        </div>
+
+        <div class="login-error" id="error" role="alert" hidden>
+          <svg class="icon"><use href="icons.svg#i-alert"/></svg><span id="errorText"></span>
+        </div>
+
+        <div class="float-field">
+          <input id="username" name="username" autocomplete="username" placeholder=" " required>
+          <label for="username">اسم المستخدم</label>
+          <svg class="icon"><use href="icons.svg#i-user"/></svg>
+        </div>
+
+        <div class="float-field">
+          <input id="password" name="password" type="password" autocomplete="current-password" placeholder=" " required>
+          <label for="password">كلمة المرور</label>
+          <svg class="icon"><use href="icons.svg#i-lock"/></svg>
+          <button class="icon-btn reveal" id="reveal" type="button" aria-label="إظهار كلمة المرور">
+            <svg class="icon"><use id="revealIcon" href="icons.svg#i-eye"/></svg>
+          </button>
+        </div>
+
+        <p class="caps" id="caps" hidden><svg class="icon-sm"><use href="icons.svg#i-alert"/></svg>زر Caps Lock مفعّل</p>
+
+        <button class="btn btn-primary login-submit" id="submit" type="submit">
+          <span id="submitLabel">تسجيل الدخول</span>
+        </button>
+
+        <p class="secure-note"><svg class="icon-sm"><use href="icons.svg#i-lock"/></svg>اتصال آمن ومشفّر</p>
+      </form>
+    </main>
+  </div>
+
+  <script src="login.js"></script>
+</body>
+</html>
