@@ -65,6 +65,9 @@ function describeDbError(err) {
   if (code === 'ECONNREFUSED') {
     return 'PostgreSQL غير شغال أو يعمل على بورت مختلف. شغّلي خدمة PostgreSQL وتأكدي من البورت في DATABASE_URL';
   }
+  if (code === 'ECONNRESET') {
+    return 'الاتصال بقاعدة البيانات انقطع. جرّبي 127.0.0.1 بدل localhost في DATABASE_URL، وتأكدي أن البرنامج على البورت هو PostgreSQL وأن برامج الحماية لا تمنع الاتصال';
+  }
   if (code === '28P01') return 'كلمة مرور قاعدة البيانات غير صحيحة (راجعي DATABASE_URL في ملف .env)';
   if (code === '3D000') return 'قاعدة البيانات غير موجودة، أنشئيها بالأمر: CREATE DATABASE iqama;';
   if (code === 'ENOTFOUND') return 'عنوان خادم قاعدة البيانات غير صحيح';
