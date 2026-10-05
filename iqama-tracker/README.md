@@ -6,7 +6,7 @@
 ## التقنيات
 
 - **الباك اند:** Node.js 20.12+ و Express 5
-- **قاعدة البيانات:** PostgreSQL 13+ (مع إضافة `pg_trgm` للبحث السريع)
+- **قاعدة البيانات:** PostgreSQL 13+ على السيرفر (مع `pg_trgm` للبحث السريع)، أو PGlite مدمجة للتشغيل على الجهاز
 - **الإيميل:** Nodemailer (أي SMTP: Office 365 / Gmail / Zoho ...)
 - **الواجهة:** HTML + CSS + JavaScript بدون framework، عربي RTL، خط IBM Plex Sans Arabic
 
@@ -52,18 +52,33 @@
 - عدد أيام التنبيه قابل للتغيير (الافتراضي 30).
 - "اليوم" يُحسب بتوقيت السعودية (`Asia/Riyadh`) مهما كان مكان السيرفر.
 
-## التشغيل
+## التشغيل على جهازك (بدون تثبيت PostgreSQL)
+
+محتاج **Node.js** بس (نسخة 20.12 أو أحدث). البرنامج بيستخدم قاعدة بيانات مدمجة (PGlite) بتتحفظ في فولدر `data/`.
 
 ```bash
 cd iqama-tracker
 npm install
-cp .env.example .env        # عدلي DATABASE_URL و SESSION_SECRET وإعدادات الإيميل
-npm run migrate             # إنشاء الجداول
-npm run create-user -- admin 'كلمة-مرور-قوية'
+npm run migrate
+npm run create-user -- admin Admin12345
 npm start
 ```
 
 افتحي http://localhost:3000 وسجلي الدخول.
+
+بيانات تجريبية: `npm run seed -- 300` ثم `npm run seed-demo`.
+
+## التشغيل على سيرفر (PostgreSQL)
+
+على السيرفر استخدمي PostgreSQL حقيقي عن طريق ضبط `DATABASE_URL` في ملف `.env`:
+
+```bash
+npm install
+cp .env.example .env        # عدلي DATABASE_URL و SESSION_SECRET وإعدادات الإيميل
+npm run migrate             # ينشئ قاعدة البيانات والجداول تلقائيًا
+npm run create-user -- admin 'كلمة-مرور-قوية'
+npm start
+```
 
 ### إنشاء قاعدة البيانات
 

@@ -349,7 +349,7 @@ router.delete('/residencies/:id', async (req, res) => {
   try {
     ({ rowCount } = await pool.query('DELETE FROM residencies WHERE id = $1', [id]));
   } catch (err) {
-    if (err.code === '23503') {
+    if (err.code === '23503' || err.code === '23001') {
       return res.status(409).json({ error: 'لا يمكن حذف الموظف لوجود سلف أو عهد مسجلة عليه' });
     }
     throw err;

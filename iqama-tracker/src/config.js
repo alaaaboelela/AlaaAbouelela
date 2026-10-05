@@ -9,7 +9,8 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 const config = {
   port: Number(process.env.PORT) || 3000,
-  databaseUrl: process.env.DATABASE_URL || 'postgres://iqama:iqama@localhost:5432/iqama',
+  // بدون DATABASE_URL يعمل بقاعدة بيانات مدمجة في مجلد data/ (لا يحتاج تثبيت PostgreSQL)
+  databaseUrl: process.env.DATABASE_URL || 'pglite://data/db',
   sessionSecret: process.env.SESSION_SECRET || '',
   sessionHours: Number(process.env.SESSION_HOURS) || 12,
   // "اليوم" يُحسب بتوقيت السعودية مهما كان توقيت الخادم

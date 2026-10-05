@@ -8,10 +8,67 @@ types.setTypeParser(1082, (v) => v);
 // أعمدة NUMERIC (المبالغ) كأرقام
 types.setTypeParser(1700, (v) => Number.parseFloat(v));
 
-const pool = new Pool({ connectionString: config.databaseUrl });
+// قاعدة بيانات مدمجة (PGlite) للتشغيل على الجهاز بدون تثبيت PostgreSQL:
+//   DATABASE_URL=pglite://./data/db   أو   pglite://memory (للاختبارات)
+function createEmbeddedPool(url) {
+  const { PGlite } = require('@electric-sql/pglite');
+  const { pg_trgm } = require('@electric-sql/pglite/contrib/pg_trgm');
+  const target = url.slice('pglite://'.length);
+  const dataDir = target === 'memory' ? undefined : path.resolve(__dirname, '..', target);
+  if (dataDir) fs.mkdirSync(dataDir, { recursive: true });
+  const ready = PGlite.create({
+    dataDir,
+    extensions: { pg_trgm },
+    parsers: { 1082: (v) => v, 1700: (v) => Number.parseFloat(v), 20: (v) => v },
+  });
+
+  // اتصال واحد: نرتّب الطلبات حتى لا تتداخل المعاملات (transactions)
+  let tail = Promise.resolve();
+  const lock = () => {
+    let release;
+    const next = new Promise((r) => { release = r; });
+    const prev = tail;
+    tail = prev.then(() => next);
+    return prev.then(() => release);
+  };
+  const run = async (text, params) => {
+    const db = await ready;
+    if (!params?.length && text.includes(';')) {
+      const results = await db.exec(text);
+      const last = results[results.length - 1] || { rows: [] };
+      return { rows: last.rows, rowCount: last.affectedRows || last.rows.length };
+    }
+    const r = await db.query(text, params);
+    return { rows: r.rows, rowCount: r.affectedRows || r.rows.length };
+  };
+
+  return {
+    embedded: true,
+    async query(text, params) {
+      const release = await lock();
+      try {
+        return await run(text, params);
+      } finally {
+        release();
+      }
+    },
+    async connect() {
+      const release = await lock();
+      return { query: run, release };
+    },
+    async end() {
+      await (await ready).close();
+    },
+  };
+}
+
+const pool = config.databaseUrl.startsWith('pglite://')
+  ? createEmbeddedPool(config.databaseUrl)
+  : new Pool({ connectionString: config.databaseUrl });
 
 // إنشاء قاعدة البيانات تلقائيًا إن لم تكن موجودة (بدون الحاجة لـ psql)
 async function ensureDatabase() {
+  if (pool.embedded) return;
   try {
     const client = await pool.connect();
     client.release();

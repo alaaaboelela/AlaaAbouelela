@@ -60,7 +60,7 @@ function validateFields(fields, body) {
 
 function dbError(err, res) {
   if (err.code === '23505') return res.status(409).json({ error: 'القيمة مسجلة من قبل (مكررة)' });
-  if (err.code === '23503') {
+  if (err.code === '23503' || err.code === '23001') {
     return res.status(409).json({ error: 'لا يمكن الحذف أو الحفظ لوجود بيانات مرتبطة (مثل سلف أو عهد على الموظف)' });
   }
   if (err.code === '23514') return res.status(400).json({ error: 'قيمة غير مسموح بها' });
