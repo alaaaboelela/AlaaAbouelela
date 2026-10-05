@@ -10,7 +10,30 @@ types.setTypeParser(1700, (v) => Number.parseFloat(v));
 
 const pool = new Pool({ connectionString: config.databaseUrl });
 
+// إنشاء قاعدة البيانات تلقائيًا إن لم تكن موجودة (بدون الحاجة لـ psql)
+async function ensureDatabase() {
+  try {
+    const client = await pool.connect();
+    client.release();
+  } catch (err) {
+    if (err.code !== '3D000') throw err;
+    const url = new URL(config.databaseUrl);
+    const name = decodeURIComponent(url.pathname.slice(1));
+    url.pathname = '/postgres';
+    const { Client } = require('pg');
+    const admin = new Client({ connectionString: url.toString() });
+    await admin.connect();
+    try {
+      await admin.query(`CREATE DATABASE "${name.replace(/"/g, '""')}"`);
+      console.log(`تم إنشاء قاعدة البيانات: ${name}`);
+    } finally {
+      await admin.end();
+    }
+  }
+}
+
 async function migrate() {
+  await ensureDatabase();
   const sql = fs.readFileSync(path.join(__dirname, '..', 'db', 'schema.sql'), 'utf8');
   await pool.query(sql);
 }
