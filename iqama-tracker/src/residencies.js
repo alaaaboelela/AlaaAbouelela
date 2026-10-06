@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool, getAlertDays, setSetting } = require('./db');
-const { parseCsv, toCsv } = require('./csv');
+const { toCsv } = require('./csv');
+const { writeXlsx, readTable, parseDateCell, toLatinDigits } = require('./xlsx');
 const { hijriToGregorian, gregorianToHijri } = require('../public/hijri');
 const config = require('./config');
 const audit = require('./audit');
@@ -205,24 +206,57 @@ router.get('/stats/monthly', async (req, res) => {
 
 // ---------- تصدير / استيراد ----------
 
-const EXPORT_HEADER = ['الاسم', 'رقم الإقامة', 'تاريخ الانتهاء', 'تاريخ الانتهاء هجري', 'الجنسية', 'الجوال', 'جهة العمل', 'ملاحظات', 'الأيام المتبقية'];
+const EXPORT_HEADER = ['الاسم', 'رقم الإقامة', 'تاريخ الانتهاء', 'تاريخ الانتهاء هجري', 'الجنسية', 'الجوال', 'جهة العمل',
+  'رصيد الإجازة السنوية', 'ملاحظات', 'الأيام المتبقية', 'الحالة'];
+const STATUS_LABELS = { expired: 'منتهية', expiring: 'قريبة من الانتهاء', valid: 'سارية' };
+const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-router.get('/residencies/export.csv', async (req, res) => {
+async function exportRows(query) {
   const alertDays = await getAlertDays();
   const p = params();
-  const where = buildWhere(req.query, p, alertDays);
+  const where = buildWhere(query, p, alertDays);
   const todayParam = p.add(today());
   const { rows } = await pool.query(
     `SELECT ${columns(todayParam)} FROM residencies ${where} ORDER BY ${SORTS.expiry}`,
     p.values,
   );
-  const csv = toCsv(EXPORT_HEADER, rows.map((r) => [
+  return rows.map((r) => [
     r.name, r.iqama_number, r.expiry_date, gregorianToHijri(r.expiry_date),
-    r.nationality, r.phone, r.employer, r.notes, r.days_left,
-  ]));
+    r.nationality, r.phone, r.employer, r.annual_leave_days, r.notes, r.days_left, STATUS_LABELS[statusOf(r.days_left, alertDays)],
+  ]);
+}
+
+router.get('/residencies/export.csv', async (req, res) => {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="residencies.csv"');
-  res.send(csv);
+  res.send(toCsv(EXPORT_HEADER, await exportRows(req.query)));
+});
+
+router.get('/residencies/export.xlsx', async (req, res) => {
+  const rows = await exportRows(req.query);
+  res.setHeader('Content-Type', XLSX_TYPE);
+  res.setHeader('Content-Disposition', `attachment; filename="residencies-${today()}.xlsx"; filename*=UTF-8''${encodeURIComponent(`الإقامات-${today()}.xlsx`)}`);
+  res.send(writeXlsx([{ name: 'الإقامات', header: EXPORT_HEADER, rows }]));
+});
+
+router.get('/residencies/template.xlsx', (req, res) => {
+  res.setHeader('Content-Type', XLSX_TYPE);
+  res.setHeader('Content-Disposition', `attachment; filename="residencies-template.xlsx"; filename*=UTF-8''${encodeURIComponent('نموذج-استيراد-الإقامات.xlsx')}`);
+  res.send(writeXlsx([
+    { name: 'الإقامات', header: ['الاسم', 'رقم الإقامة', 'تاريخ الانتهاء', 'الجنسية', 'الجوال', 'جهة العمل', 'رصيد الإجازة السنوية', 'ملاحظات'], rows: [] },
+    {
+      name: 'تعليمات',
+      header: ['العمود', 'مطلوب', 'ملاحظات'],
+      rows: [
+        ['الاسم', 'نعم', ''],
+        ['رقم الإقامة', 'نعم', '10 أرقام تبدأ بـ 2. لو الرقم موجود يتم تحديث بياناته بدل التكرار'],
+        ['تاريخ الانتهاء', 'نعم', 'ميلادي (2026-12-31 أو 31/12/2026) أو هجري (1448-06-15)'],
+        ['الجنسية', 'لا', ''], ['الجوال', 'لا', ''], ['جهة العمل', 'لا', ''],
+        ['رصيد الإجازة السنوية', 'لا', 'عدد الأيام في السنة، الافتراضي 21'],
+        ['ملاحظات', 'لا', ''],
+      ],
+    },
+  ]));
 });
 
 // أسماء الأعمدة المقبولة في ملف الاستيراد (عربي أو إنجليزي)
@@ -235,13 +269,19 @@ const IMPORT_COLUMNS = {
   phone: ['phone', 'الجوال', 'رقم الجوال'],
   employer: ['employer', 'جهة العمل', 'الكفيل'],
   notes: ['notes', 'ملاحظات'],
+  annualLeaveDays: ['annual_leave_days', 'رصيد الإجازة السنوية', 'رصيد الإجازة'],
 };
 
-router.post('/residencies/import', express.text({ type: '*/*', limit: '30mb' }), async (req, res) => {
-  const rows = parseCsv(String(req.body || ''));
+router.post('/residencies/import', express.raw({ type: '*/*', limit: '30mb' }), async (req, res) => {
+  let rows;
+  try {
+    rows = readTable(req.body);
+  } catch {
+    return res.status(400).json({ error: 'تعذر قراءة الملف، تأكدي أنه ملف Excel (xlsx) أو CSV' });
+  }
   if (rows.length < 2) return res.status(400).json({ error: 'الملف فارغ أو بدون صف عناوين' });
 
-  const header = rows[0].map((h) => h.trim().toLowerCase());
+  const header = rows[0].map((h) => String(h ?? '').trim().toLowerCase());
   const index = {};
   for (const [field, names] of Object.entries(IMPORT_COLUMNS)) {
     index[field] = header.findIndex((h) => names.includes(h));
@@ -254,8 +294,11 @@ router.post('/residencies/import', express.text({ type: '*/*', limit: '30mb' }),
   const valid = new Map(); // آخر صف لكل رقم إقامة
   rows.slice(1).forEach((cells, i) => {
     const body = {};
+    if (!cells.some((c) => str(c))) return; // صف فارغ
     for (const [field, col] of Object.entries(index)) if (col >= 0) body[field] = cells[col];
-    // لو التاريخ الميلادي فارغ نستخدم الهجري
+    body.iqamaNumber = toLatinDigits(body.iqamaNumber);
+    // عمود التاريخ يقبل رقم Excel أو ميلادي أو هجري؛ لو فارغ نستخدم عمود الهجري
+    body.expiryDate = parseDateCell(body.expiryDate);
     if (!str(body.expiryDate)) delete body.expiryDate;
     const { errors: e, value } = validate(body);
     if (e.length) errors.push({ line: i + 2, error: e.join('، ') });
@@ -270,14 +313,17 @@ router.post('/residencies/import', express.text({ type: '*/*', limit: '30mb' }),
     const records = [...valid.values()];
     for (let i = 0; i < records.length; i += 1000) {
       const { rows: result } = await client.query(
-        `INSERT INTO residencies (name, iqama_number, expiry_date, nationality, phone, employer, notes)
+        `INSERT INTO residencies (name, iqama_number, expiry_date, nationality, phone, employer, notes, annual_leave_days)
          SELECT * FROM jsonb_to_recordset($1::jsonb) AS x(
-           name text, "iqamaNumber" text, "expiryDate" date, nationality text, phone text, employer text, notes text)
+           name text, "iqamaNumber" text, "expiryDate" date, nationality text, phone text, employer text, notes text,
+           "annualLeaveDays" int)
          ON CONFLICT (iqama_number) DO UPDATE SET
            name = EXCLUDED.name, expiry_date = EXCLUDED.expiry_date, nationality = EXCLUDED.nationality,
-           phone = EXCLUDED.phone, employer = EXCLUDED.employer, notes = EXCLUDED.notes, updated_at = now()
+           phone = EXCLUDED.phone, employer = EXCLUDED.employer, notes = EXCLUDED.notes,
+           annual_leave_days = CASE WHEN $2 THEN EXCLUDED.annual_leave_days ELSE residencies.annual_leave_days END,
+           updated_at = now()
          RETURNING (xmax = 0) AS inserted`,
-        [JSON.stringify(records.slice(i, i + 1000))],
+        [JSON.stringify(records.slice(i, i + 1000)), index.annualLeaveDays >= 0],
       );
       for (const r of result) if (r.inserted) inserted++; else updated++;
     }

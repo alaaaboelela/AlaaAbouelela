@@ -147,9 +147,10 @@
                 <p class="card-sub" id="listSub">&nbsp;</p>
               </div>
               <div class="actions">
+                <a class="btn btn-ghost" id="templateBtn" href="/api/residencies/template.xlsx" title="ملف Excel فارغ بالأعمدة المطلوبة"><svg class="icon"><use href="icons.svg#i-file"/></svg>نموذج الاستيراد</a>
                 <button class="btn btn-ghost" id="importBtn" type="button"><svg class="icon"><use href="icons.svg#i-upload"/></svg>استيراد</button>
                 <button class="btn btn-ghost" id="exportBtn" type="button"><svg class="icon"><use href="icons.svg#i-download"/></svg>تصدير Excel</button>
-                <input id="importFile" type="file" accept=".csv,text/csv" hidden>
+                <input id="importFile" type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
               </div>
             </div>
             <div class="toolbar">
@@ -207,6 +208,12 @@
                 <p class="card-sub" id="mSub">&nbsp;</p>
               </div>
               <div class="totals" id="mTotals"></div>
+              <div class="actions">
+                <a class="btn btn-ghost" id="mTemplateBtn" title="ملف Excel فارغ بالأعمدة المطلوبة"><svg class="icon"><use href="icons.svg#i-file"/></svg>نموذج الاستيراد</a>
+                <button class="btn btn-ghost" id="mImportBtn" type="button"><svg class="icon"><use href="icons.svg#i-upload"/></svg>استيراد</button>
+                <button class="btn btn-ghost" id="mExportBtn" type="button"><svg class="icon"><use href="icons.svg#i-download"/></svg>تصدير Excel</button>
+                <input id="mImportFile" type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+              </div>
             </div>
             <div class="toolbar">
               <div class="input-icon search">
@@ -220,6 +227,7 @@
                 <option value="newest">الأحدث إضافة</option>
               </select>
             </div>
+            <div class="import-result" id="mImportResult" hidden></div>
             <div class="table-wrap">
               <table>
                 <thead id="mHead"></thead>

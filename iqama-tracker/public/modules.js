@@ -94,6 +94,10 @@ const Modules = (() => {
     }
     const m = schema[key];
     $('mTitle').textContent = `سجل ${m.label}`;
+    $('mImportResult').hidden = true;
+    $('mTemplateBtn').href = `/api/m/${key}/template.xlsx`;
+    $('mTemplateBtn').hidden = !can(key, 'write');
+    $('mImportBtn').hidden = !can(key, 'write');
     $('mSearch').placeholder = `ابحث في ${m.label}...`;
     $('mStatus').innerHTML = [['all', 'الكل'], ...Object.entries(m.statuses).map(([k, s]) => [k, s.label])]
       .map(([k, label]) => `<button type="button" data-status="${k}" aria-pressed="${k === ms.status}">${esc(label)} <span class="count" data-mcount="${k}"></span></button>`)
@@ -168,6 +172,26 @@ const Modules = (() => {
     timer = setTimeout(() => { ms.page = 1; load(); }, 300);
   });
   $('mSort').addEventListener('change', () => { ms.page = 1; load(); });
+
+  $('mExportBtn').addEventListener('click', () => {
+    const qs = new URLSearchParams();
+    if (ms.status !== 'all') qs.set('status', ms.status);
+    if ($('mSearch').value.trim()) qs.set('q', $('mSearch').value.trim());
+    location.href = `/api/m/${ms.key}/export.xlsx?${qs}`;
+    toast('جاري تجهيز ملف Excel...', 'info');
+  });
+  $('mImportBtn').addEventListener('click', () => $('mImportFile').click());
+  $('mImportFile').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    if (await importSheet(`/api/m/${ms.key}/import`, file, $('mImportResult'))) {
+      ms.page = 1;
+      ms.items = [];
+      load();
+      loadOverview().catch(() => {});
+    }
+  });
   $('mPrev').addEventListener('click', () => { ms.page -= 1; load(); });
   $('mNext').addEventListener('click', () => { ms.page += 1; load(); });
 

@@ -9,6 +9,7 @@ const { params, today, addDays } = require('./residencies');
 const config = require('./config');
 const audit = require('./audit');
 const { can } = require('./permissions');
+const { writeXlsx, readTable, parseDateCell, toLatinDigits } = require('./xlsx');
 
 const router = express.Router();
 const str = (v) => (v == null ? '' : String(v).trim());
@@ -288,6 +289,186 @@ router.get('/overview', async (req, res) => {
 
 router.get('/schema', (req, res) => res.json(publicSchema()));
 
+// ---------- Excel: تصدير، نموذج، استيراد ----------
+
+const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const IQAMA_SUFFIX = ' - رقم الإقامة';
+const MAX_IMPORT_ROWS = 10000;
+
+function sendXlsx(res, asciiName, arabicName, sheets) {
+  res.setHeader('Content-Type', XLSX_TYPE);
+  res.setHeader('Content-Disposition',
+    `attachment; filename="${asciiName}.xlsx"; filename*=UTF-8''${encodeURIComponent(`${arabicName}.xlsx`)}`);
+  res.send(writeXlsx(sheets));
+}
+
+// أعمدة الملف لكل قسم: حقل الموظف = عمود رقم الإقامة (وعمود الاسم للقراءة فقط في التصدير)
+function sheetFields(m) {
+  return m.fields.map((f) => ({ f, header: f.type === 'employee' ? `${f.label}${IQAMA_SUFFIX}` : f.label }));
+}
+
+// أعمدة محسوبة تُضاف للتصدير فقط (المتبقي، الرصيد، التقييم...)
+function computedColumns(m) {
+  const names = new Set(m.fields.map((f) => f.name));
+  return m.columns.filter((c) => c.label && !names.has(c.key) && c.type !== 'person' && !/_name$/.test(c.key))
+    .map((c) => ({ key: c.key, header: c.type === 'days' ? `${c.label} (يوم)` : c.label, type: c.type }));
+}
+
+const asNumber = (v) => (v == null || v === '' ? '' : Number(v));
+
+async function exportModule(m, query) {
+  const base = await context();
+  const { sql, p } = inner(m, base, { q: str(query.q) });
+  const status = m.statuses[query.status] ? p.add(query.status) : null;
+  const { rows } = await pool.query(
+    `SELECT * FROM (${sql}) x ${status ? `WHERE status = ${status}` : ''} ORDER BY ${m.sort} LIMIT 100000`,
+    p.values,
+  );
+  const empFields = m.fields.filter((f) => f.type === 'employee');
+  const ids = [...new Set(rows.flatMap((r) => empFields.map((f) => r[f.name]).filter(Boolean).map(String)))];
+  const emps = new Map();
+  if (ids.length) {
+    const res = await pool.query('SELECT id, name, iqama_number FROM residencies WHERE id = ANY($1::bigint[])', [ids]);
+    for (const e of res.rows) emps.set(String(e.id), e);
+  }
+  const header = [];
+  for (const f of m.fields) {
+    if (f.type === 'employee') header.push(f.label, `${f.label}${IQAMA_SUFFIX}`);
+    else header.push(f.label);
+  }
+  const computed = computedColumns(m);
+  header.push(...computed.map((c) => c.header), 'الحالة');
+  const data = rows.map((r) => {
+    const out = [];
+    for (const f of m.fields) {
+      const v = r[f.name];
+      if (f.type === 'employee') {
+        const e = emps.get(String(v));
+        out.push(e?.name ?? '', e?.iqama_number ?? '');
+      } else if (['money', 'int', 'rating'].includes(f.type)) out.push(asNumber(v));
+      else out.push(v ?? '');
+    }
+    for (const c of computed) out.push(['money', 'number', 'days', 'progress', 'stars'].includes(c.type) ? asNumber(r[c.key]) : r[c.key] ?? '');
+    out.push(m.statuses[r.status]?.label ?? '');
+    return out;
+  });
+  return { header, rows: data };
+}
+
+function templateSheets(m) {
+  const cols = sheetFields(m);
+  const describe = (f) => {
+    switch (f.type) {
+      case 'date': return 'تاريخ ميلادي (2026-12-31 أو 31/12/2026) أو هجري (1448-06-15)';
+      case 'money': return 'مبلغ بالريال (رقم)';
+      case 'int': return 'رقم صحيح';
+      case 'rating': return 'رقم من 1 إلى 5';
+      case 'employee': return 'رقم إقامة الموظف (لازم يكون مسجّل في الإقامات)';
+      case 'select': return `واحدة من: ${f.options.join('، ')}${f.default ? ` (الافتراضي: ${f.default})` : ''}`;
+      default: return 'نص';
+    }
+  };
+  return [
+    { name: m.label, header: cols.map((c) => c.header), rows: [] },
+    {
+      name: 'تعليمات',
+      header: ['العمود', 'مطلوب', 'القيم المقبولة'],
+      rows: cols.map(({ f, header }) => [header, f.required ? 'نعم' : 'لا', describe(f)]),
+    },
+  ];
+}
+
+const normHeader = (h) => String(h ?? '').trim().replace(/\s+/g, ' ').replace(/\s*\*$/, '').toLowerCase();
+
+async function importModule(m, buf) {
+  let rows;
+  try {
+    rows = readTable(buf);
+  } catch {
+    return { error: 'تعذر قراءة الملف، تأكدي أنه ملف Excel (xlsx) أو CSV' };
+  }
+  if (rows.length < 2) return { error: 'الملف فارغ أو بدون صف عناوين' };
+  if (rows.length - 1 > MAX_IMPORT_ROWS) return { error: `أقصى عدد ${MAX_IMPORT_ROWS} صف في الملف الواحد` };
+
+  const header = rows[0].map(normHeader);
+  const index = {};
+  for (const { f, header: h } of sheetFields(m)) {
+    const names = [h, f.label, f.name].map(normHeader);
+    index[f.name] = header.findIndex((x) => names.includes(x));
+  }
+  const missing = m.fields.filter((f) => f.required && index[f.name] < 0);
+  if (missing.length) {
+    return { error: `الملف ناقص أعمدة مطلوبة: ${missing.map((f) => (f.type === 'employee' ? `${f.label}${IQAMA_SUFFIX}` : f.label)).join('، ')}` };
+  }
+
+  // تحويل أرقام الإقامة إلى معرّفات الموظفين دفعة واحدة
+  const empFields = m.fields.filter((f) => f.type === 'employee' && index[f.name] >= 0);
+  const iqamas = new Set();
+  for (const cells of rows.slice(1)) for (const f of empFields) iqamas.add(toLatinDigits(cells[index[f.name]]));
+  iqamas.delete('');
+  const byIqama = new Map();
+  if (iqamas.size) {
+    const res = await pool.query('SELECT id, iqama_number FROM residencies WHERE iqama_number = ANY($1::text[])', [[...iqamas]]);
+    for (const e of res.rows) byIqama.set(e.iqama_number, String(e.id));
+  }
+
+  const errors = [];
+  const valid = [];
+  rows.slice(1).forEach((cells, i) => {
+    if (!cells.some((c) => str(c))) return;
+    const line = i + 2;
+    const body = {};
+    const rowErrors = [];
+    for (const f of m.fields) {
+      const col = index[f.name];
+      if (col < 0) continue;
+      let v = cells[col];
+      if (f.type === 'date') v = parseDateCell(v);
+      else if (f.type === 'employee') {
+        const iq = toLatinDigits(v);
+        v = iq ? byIqama.get(iq) : '';
+        if (iq && !v) rowErrors.push(`${f.label}: لا يوجد موظف برقم الإقامة ${iq}`);
+      } else if (['money', 'int', 'rating'].includes(f.type)) v = toLatinDigits(v);
+      body[f.name] = v;
+    }
+    const { errors: e, values } = validateFields(m.fields, body);
+    if (!e.length && m.validate) e.push(...m.validate(values));
+    rowErrors.push(...e.filter((x) => !rowErrors.some((y) => x.startsWith(y.split(':')[0]))));
+    if (rowErrors.length) errors.push({ line, error: rowErrors.join('، ') });
+    else valid.push({ line, values });
+  });
+
+  let inserted = 0;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const { line, values } of valid) {
+      const cols = Object.keys(values);
+      await client.query('SAVEPOINT row');
+      try {
+        await client.query(
+          `INSERT INTO ${m.table} (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')})`,
+          cols.map((c) => values[c]),
+        );
+        await client.query('RELEASE SAVEPOINT row');
+        inserted++;
+      } catch (err) {
+        await client.query('ROLLBACK TO SAVEPOINT row');
+        if (!['23505', '23503', '23514'].includes(err.code)) throw err;
+        errors.push({ line, error: err.code === '23505' ? 'القيمة مسجلة من قبل (مكررة)' : 'قيمة غير مسموح بها' });
+      }
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+  errors.sort((a, b) => a.line - b.line);
+  return { inserted, failed: errors.length, errors: errors.slice(0, 200) };
+}
+
 // ---------- مسارات كل قسم ----------
 
 for (const [key, m] of Object.entries(MODULES)) {
@@ -318,6 +499,22 @@ for (const [key, m] of Object.entries(MODULES)) {
       totals: await totals(m),
       items: list.rows,
     });
+  });
+
+  router.get(`/m/${key}/export.xlsx`, async (req, res) => {
+    const { header, rows } = await exportModule(m, req.query);
+    sendXlsx(res, `${key}-${today()}`, `${m.label}-${today()}`, [{ name: m.label, header, rows }]);
+  });
+
+  router.get(`/m/${key}/template.xlsx`, (req, res) => {
+    sendXlsx(res, `${key}-template`, `نموذج-${m.label}`, templateSheets(m));
+  });
+
+  router.post(`/m/${key}/import`, express.raw({ type: '*/*', limit: '30mb' }), async (req, res) => {
+    const result = await importModule(m, req.body);
+    if (result.error) return res.status(400).json({ error: result.error });
+    audit.log(req, 'import', key, '', `استيراد ${m.label}: إضافة ${result.inserted}، أخطاء ${result.failed}`);
+    return res.json(result);
   });
 
   router.get(`/m/${key}/:id`, async (req, res) => {

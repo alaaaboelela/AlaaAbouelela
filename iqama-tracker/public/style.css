@@ -648,7 +648,9 @@ tbody tr:last-child td { border-bottom: 0; }
 .pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-top: 1px solid var(--border); font-size: 13.5px; color: var(--text-2); flex-wrap: wrap; }
 .pager .pages { display: flex; gap: 6px; align-items: center; }
 
-.import-result { margin: 0 20px 16px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border); font-size: 13.5px; animation: rise .4s var(--ease); }
+.import-result { position: relative; margin: 0 20px 16px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border); font-size: 13.5px; animation: rise .4s var(--ease); }
+.import-result .close-result { position: absolute; inset-inline-end: 8px; top: 8px; width: 28px; height: 28px; }
+.list-head .actions { flex-wrap: wrap; }
 .import-result .errors { margin-top: 6px; color: var(--danger); font-size: 12.5px; max-height: 140px; overflow: auto; }
 
 /* ---------- الإعدادات ---------- */

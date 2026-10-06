@@ -494,12 +494,37 @@ $('rows').addEventListener('click', async (e) => {
 
 // ---------- استيراد وتصدير ----------
 
+// يرفع ملف Excel/CSV ويعرض النتيجة (يُستخدم في الإقامات وكل الأقسام)
+async function importSheet(url, file, out) {
+  out.hidden = false;
+  out.innerHTML = `<div class="inline-row"><span class="spinner"></span>جاري استيراد ${esc(file.name)}...</div>`;
+  try {
+    const res = await api(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: file,
+    });
+    const total = res.inserted + (res.updated || 0);
+    out.innerHTML = `<button class="icon-btn close-result" type="button" aria-label="إغلاق">${icon('x', 'icon-sm')}</button>
+      <strong>تم الاستيراد:</strong> إضافة ${fmt(res.inserted)}${res.updated != null ? ` · تحديث ${fmt(res.updated)}` : ''}` +
+      (res.failed ? ` · <span style="color:var(--danger)">${fmt(res.failed)} سطر به أخطاء لم يُستورد</span>
+        <div class="errors">${res.errors.map((x) => `سطر ${x.line}: ${esc(x.error)}`).join('<br>')}</div>` : '');
+    out.querySelector('.close-result').onclick = () => { out.hidden = true; };
+    toast(`تم استيراد ${fmt(total)} سجل`, res.failed && !total ? 'error' : 'success');
+    return res;
+  } catch (err) {
+    out.innerHTML = `<span style="color:var(--danger)">${esc(err.message)}</span>`;
+    toast(err.message, 'error');
+    return null;
+  }
+}
+
 $('exportBtn').addEventListener('click', () => {
   const params = listParams();
   params.delete('page');
   params.delete('pageSize');
-  location.href = `/api/residencies/export.csv?${params}`;
-  toast('جاري تجهيز ملف التصدير...', 'info');
+  location.href = `/api/residencies/export.xlsx?${params}`;
+  toast('جاري تجهيز ملف Excel...', 'info');
 });
 
 $('importBtn').addEventListener('click', () => $('importFile').click());
@@ -508,24 +533,9 @@ $('importFile').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   e.target.value = '';
   if (!file) return;
-  const out = $('importResult');
-  out.hidden = false;
-  out.innerHTML = `<div class="inline-row"><span class="spinner"></span>جاري استيراد ${esc(file.name)}...</div>`;
-  try {
-    const res = await api('/api/residencies/import', {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/csv' },
-      body: await file.text(),
-    });
-    out.innerHTML = `<strong>تم الاستيراد:</strong> إضافة ${fmt(res.inserted)} · تحديث ${fmt(res.updated)}` +
-      (res.failed ? ` · <span style="color:var(--danger)">${fmt(res.failed)} سطر به أخطاء</span>
-        <div class="errors">${res.errors.map((x) => `سطر ${x.line}: ${esc(x.error)}`).join('<br>')}</div>` : '');
-    toast(`تم استيراد ${fmt(res.inserted + res.updated)} إقامة`);
+  if (await importSheet('/api/residencies/import', file, $('importResult'))) {
     state.page = 1;
     await loadList();
-  } catch (err) {
-    out.innerHTML = `<span style="color:var(--danger)">${esc(err.message)}</span>`;
-    toast(err.message, 'error');
   }
 });
 
@@ -740,6 +750,7 @@ $('logout').addEventListener('click', async () => {
   $('roleLabel').textContent = me.roleLabel;
   $('avatar').textContent = (me.fullName || me.username).slice(0, 1).toUpperCase();
   $('importBtn').hidden = !can('residencies', 'write');
+  $('templateBtn').hidden = !can('residencies', 'write');
   applyNavPermissions();
   renderThemeOptions();
   showView(location.hash.slice(1) || 'dashboard');
