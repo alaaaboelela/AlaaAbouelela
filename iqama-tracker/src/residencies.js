@@ -1,5 +1,5 @@
 const express = require('express');
-const { pool, getAlertDays, setSetting } = require('./db');
+const { pool, getAlertDays, getSetting, setSetting } = require('./db');
 const { toCsv } = require('./csv');
 const { writeXlsx, readTable, parseDateCell, toLatinDigits } = require('./xlsx');
 const { hijriToGregorian, gregorianToHijri } = require('../public/hijri');
@@ -472,18 +472,28 @@ router.delete('/residencies/:id', async (req, res) => {
 // ---------- الإعدادات ----------
 
 router.get('/settings', async (req, res) => {
-  res.json({ alertDays: await getAlertDays() });
+  res.json({ alertDays: await getAlertDays(), companyName: (await getSetting('company_name')) || '' });
 });
 
+// كل مفتاح يُحدَّث لوحده لو موجود في الطلب
 router.put('/settings', async (req, res) => {
-  const days = Number(req.body?.alertDays);
-  if (!Number.isInteger(days) || days < 1 || days > 365) {
-    return res.status(400).json({ error: 'عدد أيام التنبيه يجب أن يكون بين 1 و 365' });
+  const body = req.body || {};
+  if (body.alertDays !== undefined) {
+    const days = Number(body.alertDays);
+    if (!Number.isInteger(days) || days < 1 || days > 365) {
+      return res.status(400).json({ error: 'عدد أيام التنبيه يجب أن يكون بين 1 و 365' });
+    }
+    const old = await getAlertDays();
+    await setSetting('alert_days', days);
+    audit.log(req, 'settings', 'settings', '', `مدة التنبيه: ${old} ← ${days} يوم`);
   }
-  const old = await getAlertDays();
-  await setSetting('alert_days', days);
-  audit.log(req, 'settings', 'settings', '', `مدة التنبيه: ${old} ← ${days} يوم`);
-  return res.json({ alertDays: days });
+  if (body.companyName !== undefined) {
+    const name = str(body.companyName).slice(0, 150);
+    const old = (await getSetting('company_name')) || '';
+    await setSetting('company_name', name);
+    audit.log(req, 'settings', 'settings', '', `اسم المنشأة في التقارير: ${old || '—'} ← ${name || '—'}`);
+  }
+  return res.json({ alertDays: await getAlertDays(), companyName: (await getSetting('company_name')) || '' });
 });
 
 module.exports = { router, validate, statusOf, statusCondition, columns, params, today, addDays, toApi };

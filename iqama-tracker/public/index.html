@@ -22,6 +22,8 @@
       <nav class="nav">
         <span class="nav-label">الرئيسية</span>
         <a href="#dashboard" data-view="dashboard"><svg class="icon"><use href="icons.svg#i-dashboard"/></svg>لوحة المتابعة</a>
+        <a href="#calendar" data-view="calendar"><svg class="icon"><use href="icons.svg#i-calendar"/></svg>التقويم</a>
+        <a href="#reports" data-view="reports"><svg class="icon"><use href="icons.svg#i-report"/></svg>التقارير</a>
         <span class="nav-label">الموظفين</span>
         <a href="#residencies" data-view="residencies"><svg class="icon"><use href="icons.svg#i-card"/></svg>الإقامات<span class="nav-badge" id="navBadge" title="قريبة من الانتهاء"></span></a>
         <a href="#driver_cards" data-view="driver_cards"><svg class="icon"><use href="icons.svg#i-steering"/></svg>بطاقات السائقين<span class="nav-badge" data-badge="driver_cards"></span></a>
@@ -303,6 +305,45 @@
         </section>
 
         <!-- الإعدادات -->
+        <!-- التقويم -->
+        <section class="view" id="view-calendar">
+          <div class="cal-layout">
+            <div class="card cal-card">
+              <div class="cal-head">
+                <div>
+                  <h2 class="card-title" id="calTitle">&nbsp;</h2>
+                  <p class="card-sub" id="calHijri">&nbsp;</p>
+                </div>
+                <div class="cal-nav">
+                  <button class="icon-btn bordered" id="calPrev" type="button" aria-label="الشهر السابق" title="الشهر السابق"><svg class="icon"><use href="icons.svg#i-chevron-right"/></svg></button>
+                  <button class="btn btn-ghost" id="calToday" type="button">اليوم</button>
+                  <button class="icon-btn bordered" id="calNext" type="button" aria-label="الشهر التالي" title="الشهر التالي"><svg class="icon"><use href="icons.svg#i-chevron-left"/></svg></button>
+                </div>
+              </div>
+              <div class="cal-filters" id="calFilters" role="group" aria-label="أنواع المواعيد"></div>
+              <div class="cal-grid" id="calGrid"></div>
+              <div class="cal-legend">
+                <span><i class="cal-dot expired"></i>منتهي / متأخر</span>
+                <span><i class="cal-dot expiring"></i>خلال مدة التنبيه</span>
+                <span><i class="cal-dot neutral"></i>لاحقًا</span>
+                <span><i class="cal-dot info"></i>إجازات</span>
+              </div>
+            </div>
+            <aside class="card cal-day" id="calDay">
+              <div class="cal-day-head">
+                <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-calendar"/></svg></span>
+                <div><h2 class="card-title" id="calDayTitle">&nbsp;</h2><p class="card-sub" id="calDaySub">&nbsp;</p></div>
+              </div>
+              <div id="calDayList"></div>
+            </aside>
+          </div>
+        </section>
+
+        <!-- التقارير -->
+        <section class="view" id="view-reports">
+          <div class="reports-grid" id="reportsGrid"></div>
+        </section>
+
         <section class="view" id="view-settings">
           <div class="settings-grid">
             <div class="card">
@@ -325,6 +366,19 @@
                   <button type="button" data-days="30">30 يوم</button>
                   <button type="button" data-days="60">60 يوم</button>
                   <button type="button" data-days="90">90 يوم</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="setting-head">
+                <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-building"/></svg></span>
+                <div><h2 class="card-title">اسم المنشأة</h2><p class="card-sub">يظهر في رأس كل التقارير المطبوعة وملفات PDF.</p></div>
+              </div>
+              <div class="card-body">
+                <div class="inline-row">
+                  <input class="input" id="companyName" maxlength="150" placeholder="مثال: شركة النخبة للمقاولات" style="flex:1;min-width:0">
+                  <button class="btn btn-primary" id="saveCompany" type="button">حفظ</button>
                 </div>
               </div>
             </div>
@@ -519,5 +573,6 @@
   <script src="app.js"></script>
   <script src="modules.js"></script>
   <script src="admin.js"></script>
+  <script src="planner.js"></script>
 </body>
 </html>

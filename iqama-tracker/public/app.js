@@ -20,6 +20,8 @@ const state = {
 
 const VIEWS = {
   dashboard: { title: 'لوحة المتابعة', subtitle: 'نظرة عامة على حالة إقامات الموظفين' },
+  calendar: { title: 'التقويم', subtitle: 'كل الانتهاءات والمواعيد في شهر واحد: الإقامات، المستندات، العقود، السيارات، العودة والإجازات' },
+  reports: { title: 'التقارير', subtitle: 'تقارير جاهزة للطباعة أو الحفظ كملف PDF' },
   residencies: { title: 'الإقامات', subtitle: 'إدارة بيانات الإقامات وتواريخ انتهائها' },
   settings: { title: 'الإعدادات', subtitle: 'التنبيهات والمظهر والاستيراد' },
   users: { title: 'المستخدمين', subtitle: 'حسابات الدخول والأدوار والصلاحيات' },
@@ -29,7 +31,7 @@ const VIEWS = {
 // ---------- الصلاحيات ----------
 
 // القسم الذي تتبعه كل صفحة (الأقسام العامة تتبع نفسها)
-const VIEW_SECTION = { residencies: 'residencies', users: 'users', audit: 'audit', dashboard: null, settings: null };
+const VIEW_SECTION = { residencies: 'residencies', users: 'users', audit: 'audit', dashboard: null, settings: null, calendar: null, reports: null };
 const sectionOfView = (view) => (view in VIEW_SECTION ? VIEW_SECTION[view] : view);
 
 function can(section, mode = 'read') {
@@ -204,7 +206,7 @@ function showView(view) {
   document.title = `${meta.title} — منصة الإقامات`;
   $('addBtn').querySelector('.add-label').textContent = isModule ? `إضافة ${meta.singular}`
     : view === 'users' ? 'إضافة مستخدم' : 'إضافة إقامة';
-  const addSection = isModule ? view : view === 'users' ? 'users' : view === 'audit' ? '__none' : 'residencies';
+  const addSection = isModule ? view : view === 'users' ? 'users' : ['audit', 'calendar', 'reports'].includes(view) ? '__none' : 'residencies';
   $('addBtn').hidden = !can(addSection, 'write');
   document.body.classList.remove('nav-open');
   window.scrollTo({ top: 0 });
@@ -214,6 +216,8 @@ function showView(view) {
   if (view === 'settings') loadSettings();
   if (view === 'users') Admin.showUsers();
   if (view === 'audit') Admin.showAudit();
+  if (view === 'calendar') Calendar.show();
+  if (view === 'reports') Reports.show();
   if (isModule) Modules.show(view);
 }
 
@@ -661,13 +665,14 @@ form.addEventListener('submit', async (e) => {
 async function loadSettings() {
   const s = state.stats || await loadStats();
   $('alertDays').value = s.alertDays;
+  api('/api/settings').then((x) => { $('companyName').value = x.companyName; }).catch(() => {});
   const me = state.me;
   $('emailStatus').innerHTML = me.emailEnabled
     ? `<span class="pill valid">${icon('check', 'icon-sm')}مفعّلة</span> تُرسل إلى: <span class="mono">${me.alertEmails.map(esc).join('، ')}</span>`
     : `<span class="pill neutral">غير مفعّلة</span> اضبط إعدادات <span class="mono">SMTP</span> و <span class="mono">ALERT_EMAILS</span> في ملف <span class="mono">.env</span> على الخادم`;
   $('sendEmail').disabled = !me.emailEnabled;
   const canSettings = can('settings', 'write');
-  for (const el of [$('saveSettings'), $('sendEmail'), $('alertDays'), ...$$('[data-step], [data-days]')]) el.disabled = !canSettings || (el.id === 'sendEmail' && !me.emailEnabled);
+  for (const el of [$('saveSettings'), $('sendEmail'), $('alertDays'), $('companyName'), $('saveCompany'), ...$$('[data-step], [data-days]')]) el.disabled = !canSettings || (el.id === 'sendEmail' && !me.emailEnabled);
   renderNotifyStatus();
   renderThemeOptions();
 }
@@ -701,6 +706,15 @@ for (const b of $$('[data-step]')) {
   });
 }
 for (const b of $$('[data-days]')) b.addEventListener('click', () => { $('alertDays').value = b.dataset.days; });
+
+$('saveCompany').addEventListener('click', async () => {
+  try {
+    await api('/api/settings', { method: 'PUT', body: JSON.stringify({ companyName: $('companyName').value }) });
+    toast('تم حفظ اسم المنشأة');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+});
 
 $('saveSettings').addEventListener('click', async () => {
   try {

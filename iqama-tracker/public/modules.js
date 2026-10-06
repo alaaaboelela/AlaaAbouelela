@@ -745,6 +745,10 @@ const Modules = (() => {
   return {
     init,
     reset: () => { ms.page = 1; ms.items = []; },
+    fieldHtml,
+    bindFormExtras,
+    openDrawer,
+    icon: (key) => schema[key]?.icon,
     has: (key) => Boolean(schema[key]),
     meta: (key) => ({ title: schema[key].label, subtitle: SUBTITLES[key] || '', singular: schema[key].singular }),
     show,

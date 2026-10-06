@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>تقرير — منصة الإقامات</title>
+  <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="report.css">
+</head>
+<body>
+  <div class="toolbar no-print">
+    <button class="btn" id="back" type="button">رجوع</button>
+    <span class="hint">من نافذة الطباعة اختاري "حفظ كـ PDF" لحفظ التقرير كملف</span>
+    <button class="btn primary" id="print" type="button" disabled>
+      <svg class="icon"><use href="icons.svg#i-printer"/></svg>طباعة / حفظ PDF
+    </button>
+  </div>
+
+  <main class="sheet" id="sheet">
+    <div class="loading"><span class="spinner"></span>جاري تجهيز التقرير...</div>
+  </main>
+
+  <script src="hijri.js"></script>
+  <script src="report.js"></script>
+</body>
+</html>

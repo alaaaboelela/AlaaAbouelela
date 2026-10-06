@@ -266,9 +266,8 @@ router.get('/employees', async (req, res) => {
   res.json(rows.map((r) => ({ id: String(r.id), name: r.name, iqamaNumber: r.iqama_number })));
 });
 
-router.get('/employees/:id/summary', async (req, res) => {
-  const id = parseId(req.params.id);
-  if (!id) return res.status(404).end();
+// كل ما يخص الموظف (للملف الشامل وتقرير الموظف)؛ null لو غير موجود أو من فرع آخر
+async function employeeSummary(req, id) {
   const base = await context(req);
   const section = async (key, cond) => {
     const m = MODULES[key];
@@ -298,13 +297,20 @@ router.get('/employees/:id/summary', async (req, res) => {
       [id, base.today, base.branch],
     ),
   ]);
-  if (!emp.rows.length) return res.status(404).json({ error: 'الموظف غير موجود' });
-  return res.json({
+  if (!emp.rows.length) return null;
+  return {
     driverCards, advances, custody, cars, evaluations, employeeDocs, visas, leaves,
     documents: docs.rows[0].n,
     leaveEntitlement: emp.rows[0]?.annual_leave_days ?? 21,
     leaveBalance: emp.rows[0]?.leave_balance ?? 21,
-  });
+  };
+}
+
+router.get('/employees/:id/summary', async (req, res) => {
+  const id = parseId(req.params.id);
+  const summary = id && await employeeSummary(req, id);
+  if (!summary) return res.status(404).json({ error: 'الموظف غير موجود' });
+  return res.json(summary);
 });
 
 // ---------- نظرة عامة للوحة المتابعة ----------
@@ -730,4 +736,4 @@ async function logChanges(client, m, id, before, after, user) {
   );
 }
 
-module.exports = { router, validateFields, deleteDocuments, UPLOAD_DIR, inner, context, counts };
+module.exports = { router, validateFields, deleteDocuments, UPLOAD_DIR, inner, context, counts, employeeSummary };
