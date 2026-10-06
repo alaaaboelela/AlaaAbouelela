@@ -24,7 +24,7 @@ test('الأقسام', { skip: !TEST_DB && 'TEST_DATABASE_URL غير مضبوط'
 
   await migrate();
   await pool.query(`TRUNCATE residencies, users, contracts, driver_cards, cars, car_events, advances,
-    advance_payments, custody, documents, evaluations, audit_log RESTART IDENTITY CASCADE`);
+    advance_payments, custody, documents, evaluations, audit_log, employee_docs, visas, leaves RESTART IDENTITY CASCADE`);
   await pool.query("UPDATE settings SET value = '30' WHERE key = 'alert_days'");
   await pool.query('INSERT INTO users (username, password_hash) VALUES ($1, $2)', ['admin', hashPassword('secret123')]);
   const { rows: [emp] } = await pool.query(
@@ -62,7 +62,7 @@ test('الأقسام', { skip: !TEST_DB && 'TEST_DATABASE_URL غير مضبوط'
 
   await t.test('المخطط يُرسل للواجهة بدون SQL', async () => {
     const { data } = await call('/schema');
-    assert.deepEqual(Object.keys(data).sort(), ['advances', 'cars', 'contracts', 'custody', 'driver_cards', 'evaluations']);
+    assert.deepEqual(Object.keys(data).sort(), ['advances', 'cars', 'contracts', 'custody', 'driver_cards', 'employee_docs', 'evaluations', 'leaves', 'visas']);
     assert.equal(JSON.stringify(data).includes('SELECT'), false);
   });
 
@@ -189,6 +189,56 @@ test('الأقسام', { skip: !TEST_DB && 'TEST_DATABASE_URL غير مضبوط'
     assert.deepEqual(list.counts, { excellent: 1, very_good: 0, good: 0, weak: 1, total: 2 });
     assert.equal(list.totals.average, 3.4);
     assert.equal((await call(`/employees/${emp.id}/summary`)).data.evaluations.length, 1);
+  });
+
+  await t.test('مستندات الموظفين', async () => {
+    assert.equal((await call('/m/employee_docs', 'POST', { employee_id: emp.id, doc_type: 'نوع غريب', expiry_date: isoInDays(10) })).status, 400);
+    const pass = await call('/m/employee_docs', 'POST', { employee_id: emp.id, doc_type: 'جواز السفر', doc_number: 'A123', expiry_date: isoInDays(10) });
+    assert.equal(pass.status, 201);
+    assert.equal(pass.data.status, 'expiring');
+    await call('/m/employee_docs', 'POST', { employee_id: emp2.id, doc_type: 'التأمين الطبي', expiry_date: isoInDays(-1) });
+    await call('/m/employee_docs', 'POST', { employee_id: emp2.id, doc_type: 'رخصة العمل', expiry_date: isoInDays(300) });
+    const list = (await call('/m/employee_docs')).data;
+    assert.equal(list.counts.expiring, 1);
+    assert.equal(list.counts.expired, 1);
+    assert.equal(list.counts.valid, 1);
+  });
+
+  await t.test('تأشيرات الخروج والعودة', async () => {
+    const v = { employee_id: emp.id, visa_type: 'خروج وعودة مفردة' };
+    assert.equal((await call('/m/visas', 'POST', { ...v, departure_date: isoInDays(0), return_deadline: isoInDays(-5) })).status, 400);
+    const st = async (body) => (await call('/m/visas', 'POST', { ...v, ...body })).data.status;
+    assert.equal(await st({ departure_date: isoInDays(5), return_deadline: isoInDays(60) }), 'issued');
+    assert.equal(await st({ departure_date: isoInDays(-5), return_deadline: isoInDays(60) }), 'traveling');
+    assert.equal(await st({ departure_date: isoInDays(-60), return_deadline: isoInDays(-1) }), 'late');
+    assert.equal(await st({ departure_date: isoInDays(-60), return_deadline: isoInDays(-1), actual_return_date: isoInDays(-3) }), 'returned');
+    assert.equal(await st({ visa_type: 'خروج نهائي', departure_date: isoInDays(-2), return_deadline: isoInDays(60) }), 'final_exit');
+    const counts = (await call('/m/visas')).data.counts;
+    assert.deepEqual([counts.issued, counts.traveling, counts.late, counts.returned, counts.final_exit], [1, 1, 1, 1, 1]);
+  });
+
+  await t.test('الإجازات ورصيدها', async () => {
+    const l = { employee_id: emp2.id, leave_type: 'سنوية' };
+    assert.equal((await call('/m/leaves', 'POST', { ...l, start_date: isoInDays(5), end_date: isoInDays(1) })).status, 400);
+    const pending = (await call('/m/leaves', 'POST', { ...l, start_date: isoInDays(0), end_date: isoInDays(4) })).data;
+    assert.equal(pending.status, 'pending');
+    assert.equal(pending.days, 5);
+    assert.equal(pending.leave_balance, 21);
+    const approved = await call(`/m/leaves/${pending.id}`, 'PUT', { ...l, approval: 'معتمدة', start_date: isoInDays(0), end_date: isoInDays(4) });
+    assert.equal(approved.data.status, 'on_leave');
+    assert.equal(approved.data.leave_balance, 16);
+    // المرضية لا تخصم من الرصيد السنوي
+    await call('/m/leaves', 'POST', { ...l, leave_type: 'مرضية', approval: 'معتمدة', start_date: isoInDays(0), end_date: isoInDays(2) });
+
+    const r = (await call(`/residencies/${emp2.id}`)).data;
+    assert.equal(r.annualLeaveDays, 21);
+    await call(`/residencies/${emp2.id}`, 'PUT', { ...r, annualLeaveDays: 30 });
+    const s = (await call(`/employees/${emp2.id}/summary`)).data;
+    assert.equal(s.leaveEntitlement, 30);
+    assert.equal(s.leaveBalance, 25);
+    assert.equal(s.leaves.length, 2);
+    assert.equal(s.employeeDocs.length, 2);
+    assert.equal((await call(`/residencies/${emp2.id}`, 'PUT', { ...r, annualLeaveDays: -1 })).status, 400);
   });
 
   await t.test('النظرة العامة', async () => {

@@ -248,15 +248,31 @@ router.get('/employees/:id/summary', async (req, res) => {
     );
     return rows;
   };
-  const [driverCards, advances, custody, cars, evaluations, docs] = await Promise.all([
+  const [driverCards, advances, custody, cars, evaluations, docs, employeeDocs, visas, leaves, emp] = await Promise.all([
     section('driver_cards', 'employee_id = $ID'),
     section('advances', 'employee_id = $ID'),
     section('custody', 'employee_id = $ID'),
     section('cars', 'driver_id = $ID'),
     section('evaluations', 'employee_id = $ID'),
     pool.query('SELECT count(*)::int AS n FROM documents WHERE entity_type = $1 AND entity_id = $2', ['residencies', id]),
+    section('employee_docs', 'employee_id = $ID'),
+    section('visas', 'employee_id = $ID'),
+    section('leaves', 'employee_id = $ID'),
+    pool.query(
+      `SELECT e.annual_leave_days, (e.annual_leave_days - COALESCE((
+         SELECT sum(end_date - start_date + 1) FROM leaves
+         WHERE employee_id = e.id AND leave_type = 'سنوية' AND approval = 'معتمدة'
+           AND extract(year FROM start_date) = extract(year FROM $2::date)), 0))::int AS leave_balance
+       FROM residencies e WHERE e.id = $1`,
+      [id, base.today],
+    ),
   ]);
-  res.json({ driverCards, advances, custody, cars, evaluations, documents: docs.rows[0].n });
+  res.json({
+    driverCards, advances, custody, cars, evaluations, employeeDocs, visas, leaves,
+    documents: docs.rows[0].n,
+    leaveEntitlement: emp.rows[0]?.annual_leave_days ?? 21,
+    leaveBalance: emp.rows[0]?.leave_balance ?? 21,
+  });
 });
 
 // ---------- نظرة عامة للوحة المتابعة ----------
@@ -313,6 +329,7 @@ for (const [key, m] of Object.entries(MODULES)) {
 
   router.post(`/m/${key}`, async (req, res) => {
     const { errors, values } = validateFields(m.fields, req.body || {});
+    if (!errors.length && m.validate) errors.push(...m.validate(values));
     if (errors.length) return res.status(400).json({ error: errors.join('، ') });
     const cols = Object.keys(values);
     try {
@@ -332,6 +349,7 @@ for (const [key, m] of Object.entries(MODULES)) {
     const id = parseId(req.params.id);
     if (!id) return res.status(404).end();
     const { errors, values } = validateFields(m.fields, req.body || {});
+    if (!errors.length && m.validate) errors.push(...m.validate(values));
     if (errors.length) return res.status(400).json({ error: errors.join('، ') });
     const cols = Object.keys(values);
     const client = await pool.connect();

@@ -40,6 +40,7 @@ const MODULES = {
       expired: { label: 'منتهي', tone: 'expired' },
       active: { label: 'ساري', tone: 'valid' },
     },
+    badge: ['expiring', 'expired'],
     search: ['t.company_name', 't.contract_number', 't.contract_type', 't.contact_person'],
     sort: 'end_date ASC, id ASC',
     columns: [
@@ -75,6 +76,7 @@ const MODULES = {
       expired: { label: 'منتهية', tone: 'expired' },
       valid: { label: 'سارية', tone: 'valid' },
     },
+    badge: ['expiring', 'expired'],
     search: ['e.name', 'e.iqama_number', 't.card_number', 't.license_number'],
     sort: 'expiry_date ASC, id ASC',
     columns: [
@@ -137,6 +139,7 @@ const MODULES = {
       expired: { label: 'وثائق منتهية', tone: 'expired' },
       ok: { label: 'سليمة', tone: 'valid' },
     },
+    badge: ['attention', 'expired'],
     search: ['t.plate_number', 't.make', 't.model', 't.vin', 'e.name'],
     sort: 'plate_number ASC, id ASC',
     columns: [
@@ -305,6 +308,151 @@ const MODULES = {
       average: 'round(avg((t.quality + t.commitment + t.behavior + t.teamwork + t.productivity) / 5.0), 1)::float',
     },
   },
+  employee_docs: {
+    label: 'مستندات الموظفين',
+    singular: 'مستند',
+    icon: 'passport',
+    group: 'people',
+    table: 'employee_docs',
+    from: 'employee_docs t JOIN residencies e ON e.id = t.employee_id',
+    fields: [
+      { name: 'employee_id', label: 'الموظف', type: 'employee', required: true, wide: true },
+      { name: 'doc_type', label: 'نوع المستند', type: 'select', required: true,
+        options: ['جواز السفر', 'رخصة العمل', 'التأمين الطبي', 'الشهادة الصحية', 'رخصة القيادة', 'عقد العمل', 'أخرى'] },
+      { name: 'doc_number', label: 'رقم المستند', type: 'text', mono: true },
+      { name: 'issuer', label: 'جهة الإصدار', type: 'text' },
+      { name: 'issue_date', label: 'تاريخ الإصدار', type: 'date' },
+      { name: 'expiry_date', label: 'تاريخ الانتهاء', type: 'date', required: true },
+      { name: 'notes', label: 'ملاحظات', type: 'textarea' },
+    ],
+    extra: (ctx) => `e.name AS employee_name, e.iqama_number AS employee_iqama,
+      (t.expiry_date - ${ctx.p.add(ctx.today)}::date) AS days_left`,
+    status: (ctx) => expiryStatus('t.expiry_date', ctx, 'valid'),
+    statuses: {
+      expiring: { label: 'ينتهي قريبًا', tone: 'expiring' },
+      expired: { label: 'منتهي', tone: 'expired' },
+      valid: { label: 'ساري', tone: 'valid' },
+    },
+    badge: ['expiring', 'expired'],
+    search: ['e.name', 'e.iqama_number', 't.doc_number', 't.doc_type'],
+    sort: 'expiry_date ASC, id ASC',
+    columns: [
+      { key: 'employee_name', type: 'person', sub: 'employee_iqama' },
+      { key: 'doc_type', label: 'نوع المستند', type: 'text' },
+      { key: 'doc_number', label: 'الرقم', type: 'mono' },
+      { key: 'expiry_date', label: 'تاريخ الانتهاء', type: 'date' },
+      { key: 'days_left', label: 'المتبقي', type: 'days' },
+    ],
+    title: 'employee_name',
+  },
+
+  visas: {
+    label: 'تأشيرات الخروج والعودة',
+    singular: 'تأشيرة',
+    icon: 'plane',
+    group: 'people',
+    table: 'visas',
+    from: 'visas t JOIN residencies e ON e.id = t.employee_id',
+    fields: [
+      { name: 'employee_id', label: 'الموظف', type: 'employee', required: true, wide: true },
+      { name: 'visa_type', label: 'نوع التأشيرة', type: 'select', required: true,
+        options: ['خروج وعودة مفردة', 'خروج وعودة متعددة', 'خروج نهائي'] },
+      { name: 'visa_number', label: 'رقم التأشيرة', type: 'text', mono: true },
+      { name: 'destination', label: 'الوجهة', type: 'text', placeholder: 'مصر، الهند...' },
+      { name: 'issue_date', label: 'تاريخ الإصدار', type: 'date' },
+      { name: 'departure_date', label: 'تاريخ السفر', type: 'date' },
+      { name: 'return_deadline', label: 'آخر موعد للعودة', type: 'date', required: true },
+      { name: 'actual_return_date', label: 'تاريخ العودة الفعلي', type: 'date' },
+      { name: 'notes', label: 'ملاحظات', type: 'textarea' },
+    ],
+    extra: (ctx) => `e.name AS employee_name, e.iqama_number AS employee_iqama,
+      (t.return_deadline - ${ctx.p.add(ctx.today)}::date) AS days_left`,
+    status: ({ p, today }) => {
+      const t = p.add(today);
+      return `CASE
+        WHEN t.actual_return_date IS NOT NULL THEN 'returned'
+        WHEN t.visa_type = 'خروج نهائي' AND t.departure_date <= ${t}::date THEN 'final_exit'
+        WHEN t.return_deadline < ${t}::date THEN 'late'
+        WHEN t.departure_date <= ${t}::date THEN 'traveling'
+        ELSE 'issued' END`;
+    },
+    statuses: {
+      traveling: { label: 'مسافر حاليًا', tone: 'expiring' },
+      late: { label: 'متأخر عن العودة', tone: 'expired' },
+      issued: { label: 'صادرة - لم يسافر', tone: 'neutral' },
+      returned: { label: 'عاد', tone: 'valid' },
+      final_exit: { label: 'خروج نهائي', tone: 'neutral' },
+    },
+    badge: ['late'],
+    search: ['e.name', 'e.iqama_number', 't.visa_number', 't.destination'],
+    sort: 'return_deadline ASC, id ASC',
+    columns: [
+      { key: 'employee_name', type: 'person', sub: 'employee_iqama' },
+      { key: 'visa_type', label: 'النوع', type: 'text', sub: 'destination' },
+      { key: 'departure_date', label: 'السفر', type: 'date' },
+      { key: 'return_deadline', label: 'آخر موعد للعودة', type: 'date' },
+      { key: 'actual_return_date', label: 'العودة الفعلية', type: 'date' },
+    ],
+    title: 'employee_name',
+    validate: (v) => (v.departure_date && v.return_deadline < v.departure_date ? ['آخر موعد للعودة قبل تاريخ السفر'] : []),
+  },
+
+  leaves: {
+    label: 'الإجازات',
+    singular: 'إجازة',
+    icon: 'sun-palm',
+    group: 'people',
+    table: 'leaves',
+    from: 'leaves t JOIN residencies e ON e.id = t.employee_id',
+    fields: [
+      { name: 'employee_id', label: 'الموظف', type: 'employee', required: true, wide: true },
+      { name: 'leave_type', label: 'نوع الإجازة', type: 'select', required: true,
+        options: ['سنوية', 'مرضية', 'اضطرارية', 'بدون راتب', 'أمومة', 'حج', 'زواج', 'وفاة', 'أخرى'] },
+      { name: 'approval', label: 'حالة الطلب', type: 'select', required: true, options: ['معلقة', 'معتمدة', 'مرفوضة'], default: 'معلقة' },
+      { name: 'start_date', label: 'من تاريخ', type: 'date', required: true },
+      { name: 'end_date', label: 'إلى تاريخ', type: 'date', required: true },
+      { name: 'notes', label: 'ملاحظات', type: 'textarea' },
+    ],
+    extra: (ctx) => {
+      const t = ctx.p.add(ctx.today);
+      return `e.name AS employee_name, e.iqama_number AS employee_iqama,
+      (t.end_date - t.start_date + 1) AS days,
+      (e.annual_leave_days - COALESCE((
+        SELECT sum(l2.end_date - l2.start_date + 1) FROM leaves l2
+        WHERE l2.employee_id = t.employee_id AND l2.leave_type = 'سنوية' AND l2.approval = 'معتمدة'
+          AND extract(year FROM l2.start_date) = extract(year FROM ${t}::date)
+      ), 0))::int AS leave_balance`;
+    },
+    status: ({ p, today }) => {
+      const t = p.add(today);
+      return `CASE
+        WHEN t.approval = 'مرفوضة' THEN 'rejected'
+        WHEN t.approval = 'معلقة' THEN 'pending'
+        WHEN ${t}::date BETWEEN t.start_date AND t.end_date THEN 'on_leave'
+        WHEN t.start_date > ${t}::date THEN 'upcoming'
+        ELSE 'finished' END`;
+    },
+    statuses: {
+      pending: { label: 'بانتظار الاعتماد', tone: 'expiring' },
+      on_leave: { label: 'في إجازة الآن', tone: 'info' },
+      upcoming: { label: 'قادمة', tone: 'valid' },
+      finished: { label: 'انتهت', tone: 'neutral' },
+      rejected: { label: 'مرفوضة', tone: 'expired' },
+    },
+    badge: ['pending'],
+    search: ['e.name', 'e.iqama_number', 't.leave_type'],
+    sort: 'start_date DESC, id DESC',
+    columns: [
+      { key: 'employee_name', type: 'person', sub: 'employee_iqama' },
+      { key: 'leave_type', label: 'النوع', type: 'text' },
+      { key: 'start_date', label: 'من', type: 'date' },
+      { key: 'end_date', label: 'إلى', type: 'date' },
+      { key: 'days', label: 'الأيام', type: 'number' },
+      { key: 'leave_balance', label: 'رصيد السنوية المتبقي', type: 'number' },
+    ],
+    title: 'employee_name',
+    validate: (v) => (v.start_date && v.end_date && v.end_date < v.start_date ? ['تاريخ النهاية قبل تاريخ البداية'] : []),
+  },
 };
 
 // نسخة آمنة للواجهة (بدون SQL)
@@ -318,6 +466,7 @@ function publicSchema() {
       group: m.group,
       fields: m.fields,
       statuses: m.statuses,
+      badge: m.badge || [],
       columns: m.columns,
       title: m.title,
       children: Object.fromEntries(Object.entries(m.children || {}).map(([k, c]) => [k, { label: c.label, fields: c.fields }])),

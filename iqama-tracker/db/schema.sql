@@ -205,3 +205,55 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 CREATE INDEX IF NOT EXISTS audit_log_created_idx ON audit_log (created_at DESC);
 CREATE INDEX IF NOT EXISTS audit_log_entity_idx ON audit_log (entity_type, entity_id);
+
+-- ==========================================================================
+-- مستندات الموظف، تأشيرات الخروج والعودة، الإجازات
+-- ==========================================================================
+
+ALTER TABLE residencies ADD COLUMN IF NOT EXISTS annual_leave_days INT NOT NULL DEFAULT 21;
+
+CREATE TABLE IF NOT EXISTS employee_docs (
+  id          BIGSERIAL PRIMARY KEY,
+  employee_id BIGINT NOT NULL REFERENCES residencies (id) ON DELETE CASCADE,
+  doc_type    TEXT NOT NULL,
+  doc_number  TEXT NOT NULL DEFAULT '',
+  issuer      TEXT NOT NULL DEFAULT '',
+  issue_date  DATE,
+  expiry_date DATE NOT NULL,
+  notes       TEXT NOT NULL DEFAULT '',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS employee_docs_employee_idx ON employee_docs (employee_id);
+CREATE INDEX IF NOT EXISTS employee_docs_expiry_idx ON employee_docs (expiry_date);
+
+CREATE TABLE IF NOT EXISTS visas (
+  id                 BIGSERIAL PRIMARY KEY,
+  employee_id        BIGINT NOT NULL REFERENCES residencies (id) ON DELETE CASCADE,
+  visa_type          TEXT NOT NULL,
+  visa_number        TEXT NOT NULL DEFAULT '',
+  issue_date         DATE,
+  departure_date     DATE,
+  return_deadline    DATE NOT NULL,
+  actual_return_date DATE,
+  destination        TEXT NOT NULL DEFAULT '',
+  notes              TEXT NOT NULL DEFAULT '',
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS visas_employee_idx ON visas (employee_id);
+CREATE INDEX IF NOT EXISTS visas_deadline_idx ON visas (return_deadline);
+
+CREATE TABLE IF NOT EXISTS leaves (
+  id          BIGSERIAL PRIMARY KEY,
+  employee_id BIGINT NOT NULL REFERENCES residencies (id) ON DELETE CASCADE,
+  leave_type  TEXT NOT NULL,
+  start_date  DATE NOT NULL,
+  end_date    DATE NOT NULL,
+  approval    TEXT NOT NULL DEFAULT 'معلقة',
+  notes       TEXT NOT NULL DEFAULT '',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (end_date >= start_date)
+);
+CREATE INDEX IF NOT EXISTS leaves_employee_idx ON leaves (employee_id, start_date);

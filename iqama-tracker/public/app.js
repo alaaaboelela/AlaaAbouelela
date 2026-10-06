@@ -583,6 +583,7 @@ function openForm(record) {
   for (const key of ['name', 'iqamaNumber', 'expiryDate', 'expiryDateHijri', 'nationality', 'phone', 'employer', 'notes']) {
     form.elements[key].value = record?.[key] || '';
   }
+  form.elements.annualLeaveDays.value = record?.annualLeaveDays ?? 21;
   $('modalTitle').textContent = record ? 'تعديل بيانات الإقامة' : 'إضافة إقامة جديدة';
   $('submitBtn').textContent = record ? 'حفظ التعديلات' : 'إضافة الإقامة';
   setCalendar(calendar);

@@ -24,7 +24,7 @@ function params() {
   return { values, add: (v) => { values.push(v); return `$${values.length}`; } };
 }
 
-const columns = (todayParam) => `id, name, iqama_number, expiry_date, nationality, phone, employer, notes,
+const columns = (todayParam) => `id, name, iqama_number, expiry_date, nationality, phone, employer, notes, annual_leave_days,
   created_at, updated_at, (expiry_date - ${todayParam}::date) AS days_left`;
 
 const SORTS = {
@@ -51,6 +51,7 @@ function toApi(row, alertDays) {
     phone: row.phone,
     employer: row.employer,
     notes: row.notes,
+    annualLeaveDays: row.annual_leave_days,
     daysLeft: row.days_left,
     status: statusOf(row.days_left, alertDays),
     createdAt: row.created_at,
@@ -91,6 +92,9 @@ function validate(body) {
   if (!name) errors.push('الاسم مطلوب');
   if (name.length > 200) errors.push('الاسم طويل جدا');
   if (!/^2\d{9}$/.test(iqamaNumber)) errors.push('رقم الإقامة يجب أن يكون 10 أرقام ويبدأ بـ 2');
+  const leaveRaw = str(body.annualLeaveDays);
+  const annualLeaveDays = leaveRaw === '' ? 21 : Number(leaveRaw);
+  if (!Number.isInteger(annualLeaveDays) || annualLeaveDays < 0 || annualLeaveDays > 365) errors.push('رصيد الإجازة السنوية غير صحيح');
 
   return {
     errors,
@@ -102,6 +106,7 @@ function validate(body) {
       phone: str(body.phone).slice(0, 30),
       employer: str(body.employer).slice(0, 200),
       notes: str(body.notes).slice(0, 2000),
+      annualLeaveDays,
     },
   };
 }
@@ -295,10 +300,10 @@ router.post('/residencies', async (req, res) => {
   if (errors.length) return res.status(400).json({ error: errors.join('، ') });
   try {
     const { rows } = await pool.query(
-      `INSERT INTO residencies (name, iqama_number, expiry_date, nationality, phone, employer, notes)
-       VALUES ($2, $3, $4, $5, $6, $7, $8) RETURNING ${columns('$1')}`,
+      `INSERT INTO residencies (name, iqama_number, expiry_date, nationality, phone, employer, notes, annual_leave_days)
+       VALUES ($2, $3, $4, $5, $6, $7, $8, $9) RETURNING ${columns('$1')}`,
       [today(), value.name, value.iqamaNumber, value.expiryDate,
-        value.nationality, value.phone, value.employer, value.notes],
+        value.nationality, value.phone, value.employer, value.notes, value.annualLeaveDays],
     );
     audit.log(req, 'create', 'residencies', rows[0].id, `إقامة: ${value.name} (${value.iqamaNumber})`);
     return res.status(201).json(toApi(rows[0], await getAlertDays()));
@@ -333,16 +338,16 @@ router.put('/residencies/:id', async (req, res) => {
   try {
     const { rows } = await pool.query(
       `UPDATE residencies SET name = $3, iqama_number = $4, expiry_date = $5, nationality = $6,
-         phone = $7, employer = $8, notes = $9, updated_at = now()
+         phone = $7, employer = $8, notes = $9, annual_leave_days = $10, updated_at = now()
        WHERE id = $2 RETURNING ${columns('$1')}`,
       [today(), id, value.name, value.iqamaNumber, value.expiryDate,
-        value.nationality, value.phone, value.employer, value.notes],
+        value.nationality, value.phone, value.employer, value.notes, value.annualLeaveDays],
     );
     if (!rows.length) return res.status(404).json({ error: 'الإقامة غير موجودة' });
     audit.log(req, 'update', 'residencies', id, `إقامة: ${value.name} (${value.iqamaNumber})`, audit.diff(before, {
       name: value.name, iqama_number: value.iqamaNumber, expiry_date: value.expiryDate, nationality: value.nationality,
-      phone: value.phone, employer: value.employer, notes: value.notes,
-    }, { name: 'الاسم', iqama_number: 'رقم الإقامة', expiry_date: 'تاريخ الانتهاء', nationality: 'الجنسية', phone: 'الجوال', employer: 'جهة العمل', notes: 'ملاحظات' }));
+      phone: value.phone, employer: value.employer, notes: value.notes, annual_leave_days: value.annualLeaveDays,
+    }, { name: 'الاسم', iqama_number: 'رقم الإقامة', expiry_date: 'تاريخ الانتهاء', nationality: 'الجنسية', phone: 'الجوال', employer: 'جهة العمل', notes: 'ملاحظات', annual_leave_days: 'رصيد الإجازة' }));
     return res.json(toApi(rows[0], await getAlertDays()));
   } catch (err) {
     if (duplicateError(err, res)) return undefined;

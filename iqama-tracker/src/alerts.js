@@ -67,6 +67,8 @@ async function collectModuleAlerts() {
   const sections = [
     ['contracts', ['expiring', 'expired'], (r) => [r.company_name, r.contract_number, r.end_date]],
     ['driver_cards', ['expiring', 'expired'], (r) => [r.employee_name, r.card_number, r.expiry_date]],
+    ['employee_docs', ['expiring', 'expired'], (r) => [r.employee_name, `${r.doc_type}${r.doc_number ? ` ${r.doc_number}` : ''}`, r.expiry_date]],
+    ['visas', ['late'], (r) => [r.employee_name, r.visa_type, `آخر موعد للعودة ${r.return_deadline}`]],
     ['cars', ['attention', 'expired'], (r) => [r.plate_number, r.driver_name || '', [
       r.registration_expiry && `الاستمارة ${r.registration_expiry}`,
       r.insurance_expiry && `التأمين ${r.insurance_expiry}`,
@@ -82,7 +84,7 @@ async function collectModuleAlerts() {
       p.values,
     );
     if (rows.length) {
-      out.push({ label: m.label, rows: rows.map((r) => ({ cells: cols(r), status: m.statuses[r.status].label, expired: r.status === 'expired' })) });
+      out.push({ label: m.label, rows: rows.map((r) => ({ cells: cols(r), status: m.statuses[r.status].label, expired: m.statuses[r.status].tone === 'expired' })) });
     }
   }
   return out;

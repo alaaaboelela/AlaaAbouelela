@@ -13,6 +13,9 @@ const Modules = (() => {
     advances: 'السلف المصروفة للموظفين والدفعات المسددة',
     custody: 'العهد المسلّمة للموظفين وحالة إرجاعها',
     evaluations: 'تقييم أداء الموظفين ومتابعة تطورهم',
+    employee_docs: 'الجوازات، رخص العمل، التأمين الطبي وكل مستند له تاريخ انتهاء',
+    visas: 'تأشيرات الخروج والعودة ومتابعة الموظفين المسافرين والمتأخرين',
+    leaves: 'طلبات الإجازات واعتمادها ورصيد الإجازة السنوية',
   };
 
   const todayIso = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riyadh' }).format(new Date());
@@ -34,8 +37,8 @@ const Modules = (() => {
   function statusPill(m, status) {
     const s = m.statuses[status];
     if (!s) return '';
-    const ic = { expired: 'x-circle', expiring: 'clock', valid: 'check' }[s.tone];
-    return `<span class="pill ${s.tone}">${icon(ic, 'icon-sm')}${esc(s.label)}</span>`;
+    const ic = { expired: 'x-circle', expiring: 'clock', valid: 'check', info: 'clock' }[s.tone];
+    return `<span class="pill ${s.tone}">${ic ? icon(ic, 'icon-sm') : ''}${esc(s.label)}</span>`;
   }
 
   // ---------- الخلايا ----------
@@ -58,6 +61,8 @@ const Modules = (() => {
         return v ? `<span class="mono">${esc(v)}</span>` : '<span class="muted">—</span>';
       case 'money':
         return money(v);
+      case 'number':
+        return v == null ? '<span class="muted">—</span>' : `<b class="num ${Number(v) < 0 ? 'neg' : ''}">${fmt(Number(v))}</b>`;
       case 'stars':
         return `<span class="stars-cell">${stars(v)}</span>`;
       case 'date':
@@ -607,6 +612,7 @@ const Modules = (() => {
         <div><small>الإقامة</small><b class="${r.status === 'valid' ? 'ok' : 'warn'}">${remainingText(r.daysLeft)}</b></div>
         <div><small>سلف متبقية</small><b class="${remaining ? 'warn' : ''}">${money(remaining)}</b></div>
         <div><small>عهد لديه</small><b>${fmt(held.length)}</b></div>
+        <div><small>رصيد الإجازة</small><b class="${s.leaveBalance < 0 ? 'warn' : ''}">${fmt(s.leaveBalance)} / ${fmt(s.leaveEntitlement)} يوم</b></div>
         ${s.evaluations.length ? `<div><small>آخر تقييم</small><b>${Number(s.evaluations[0].score).toFixed(1)} / 5</b></div>` : ''}
       </div>
       <section class="d-section"><h3>${icon('card', 'icon-sm')}بيانات الإقامة</h3>
@@ -617,6 +623,9 @@ const Modules = (() => {
           <div><dt>الجوال</dt><dd class="mono">${esc(r.phone || '—')}</dd></div>
           <div class="wide"><dt>جهة العمل</dt><dd>${esc(r.employer || '—')}</dd></div>
         </dl></section>
+      ${list('employee_docs', s.employeeDocs, (x) => `<div><strong>${esc(x.doc_type)}</strong><small class="muted">${x.doc_number ? `<span class="mono">${esc(x.doc_number)}</span> · ` : ''}تنتهي ${esc(fmtGregorian(x.expiry_date, 'short'))}</small></div>`)}
+      ${list('visas', s.visas, (x) => `<div><strong>${esc(x.visa_type)}</strong><small class="muted">${x.destination ? `${esc(x.destination)} · ` : ''}العودة قبل ${esc(fmtGregorian(x.return_deadline, 'short'))}</small></div>`)}
+      ${list('leaves', s.leaves, (x) => `<div><strong>${esc(x.leave_type)} · ${fmt(x.days)} يوم</strong><small class="muted">${esc(fmtGregorian(x.start_date, 'short'))} ← ${esc(fmtGregorian(x.end_date, 'short'))}</small></div>`)}
       ${list('driver_cards', s.driverCards, (x) => `<div><strong class="mono">${esc(x.card_number)}</strong><small class="muted">تنتهي ${esc(fmtGregorian(x.expiry_date, 'short'))}</small></div>`)}
       ${list('advances', s.advances, (x) => `<div><strong>${money(x.amount)}</strong><small class="muted">متبقي ${money(x.remaining)} · ${esc(fmtGregorian(x.issue_date, 'short'))}</small></div>`)}
       ${list('custody', s.custody, (x) => `<div><strong>${esc(x.item_name)}</strong><small class="muted">${x.value != null ? money(x.value) + ' · ' : ''}${esc(fmtGregorian(x.handed_date, 'short'))}</small></div>`)}
@@ -661,6 +670,9 @@ const Modules = (() => {
     const c = (k) => o[k].counts;
     $('overview').innerHTML = [
       tile('contracts', fmt(c('contracts').expiring + c('contracts').expired), `ينتهي قريبًا ${fmt(c('contracts').expiring)} · منتهي ${fmt(c('contracts').expired)}`, c('contracts').expiring + c('contracts').expired ? 'warn' : 'ok'),
+      tile('employee_docs', fmt(c('employee_docs').expiring + c('employee_docs').expired), `تنتهي قريبًا ${fmt(c('employee_docs').expiring)} · منتهية ${fmt(c('employee_docs').expired)}`, c('employee_docs').expiring + c('employee_docs').expired ? 'warn' : 'ok'),
+      tile('visas', fmt(c('visas').traveling + c('visas').late), `مسافر ${fmt(c('visas').traveling)} · متأخر ${fmt(c('visas').late)}`, c('visas').late ? 'warn' : (c('visas').traveling ? 'info' : 'ok')),
+      tile('leaves', fmt(c('leaves').on_leave), `في إجازة الآن · معلقة ${fmt(c('leaves').pending)}`, c('leaves').pending ? 'warn' : 'info'),
       tile('driver_cards', fmt(c('driver_cards').expiring + c('driver_cards').expired), `تنتهي قريبًا ${fmt(c('driver_cards').expiring)} · منتهية ${fmt(c('driver_cards').expired)}`, c('driver_cards').expiring + c('driver_cards').expired ? 'warn' : 'ok'),
       tile('cars', fmt(c('cars').attention + c('cars').expired), `من ${fmt(c('cars').total)} سيارة تحتاج متابعة`, c('cars').attention + c('cars').expired ? 'warn' : 'ok'),
       tile('advances', money(o.advances.totals.remaining), `${fmt(c('advances').open)} سلفة قائمة`, c('advances').open ? 'info' : 'ok'),
@@ -671,7 +683,7 @@ const Modules = (() => {
 
     for (const el of $$('[data-badge]')) {
       const k = el.dataset.badge;
-      const n = (c(k).expiring || 0) + (c(k).expired || 0) + (c(k).attention || 0);
+      const n = (schema[k]?.badge || []).reduce((sum, st) => sum + (c(k)?.[st] || 0), 0);
       el.textContent = n ? fmt(n) : '';
     }
   }

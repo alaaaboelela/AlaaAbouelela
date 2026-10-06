@@ -1,4 +1,4 @@
-// بيانات تجريبية للعقود، بطاقات السائقين، السيارات، السلف، العهد: npm run seed-demo
+// بيانات تجريبية لكل الأقسام: npm run seed-demo
 const { pool, migrate, describeDbError } = require('../src/db');
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
@@ -90,6 +90,41 @@ async function main() {
       [emp(), day(-rand(1, 300)), pick(['شهري', 'ربع سنوي', 'سنوي']), pick(['م. أحمد', 'أ. فهد', 'م. خالد']),
         r(), r(), r(), r(), r(), pick(['تجديد العقد', 'مكافأة', 'تدريب', 'لا يوجد']),
         pick(['ملتزم بالمواعيد', 'سريع في الإنجاز', 'متعاون مع الفريق', '']), pick(['تحسين التواصل', 'الالتزام بالسلامة', ''])],
+    );
+  }
+
+  const docTypes = [['جواز السفر', 'الجوازات'], ['رخصة العمل', 'وزارة الموارد البشرية'], ['التأمين الطبي', 'بوبا العربية'],
+    ['الشهادة الصحية', 'البلدية'], ['رخصة القيادة', 'المرور']];
+  for (let i = 0; i < 40; i++) {
+    const [type, issuer] = pick(docTypes);
+    await pool.query(
+      `INSERT INTO employee_docs (employee_id, doc_type, doc_number, issuer, issue_date, expiry_date)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [emp(), type, type === 'التأمين الطبي' ? `POL-${rand(100000, 999999)}` : `${pick(['A', 'P', 'N'])}${rand(1000000, 9999999)}`,
+        issuer, day(-rand(200, 1500)), day(rand(-30, 900))],
+    );
+  }
+
+  for (let i = 0; i < 12; i++) {
+    const departure = rand(-80, 30);
+    const type = pick(['خروج وعودة مفردة', 'خروج وعودة مفردة', 'خروج وعودة متعددة', 'خروج نهائي']);
+    const deadline = departure + rand(30, 90);
+    const returned = type !== 'خروج نهائي' && deadline < 10 && Math.random() < 0.6 ? day(deadline - rand(1, 10)) : null;
+    await pool.query(
+      `INSERT INTO visas (employee_id, visa_type, visa_number, destination, issue_date, departure_date, return_deadline, actual_return_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [emp(), type, `${rand(1000000000, 9999999999)}`, pick(['مصر', 'الهند', 'باكستان', 'الفلبين', 'السودان', 'بنغلاديش']),
+        day(departure - rand(3, 15)), day(departure), day(deadline), returned],
+    );
+  }
+
+  for (let i = 0; i < 18; i++) {
+    const start = rand(-120, 60);
+    await pool.query(
+      `INSERT INTO leaves (employee_id, leave_type, start_date, end_date, approval)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [emp(), pick(['سنوية', 'سنوية', 'سنوية', 'مرضية', 'اضطرارية']), day(start), day(start + rand(1, 21)),
+        start > 0 ? pick(['معلقة', 'معتمدة']) : pick(['معتمدة', 'معتمدة', 'مرفوضة'])],
     );
   }
   console.log('تمت إضافة البيانات التجريبية');

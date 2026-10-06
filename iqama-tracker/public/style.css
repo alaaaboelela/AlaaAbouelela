@@ -288,6 +288,9 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; }
 .pill.expiring { background: var(--warning-soft); color: var(--warning); }
 .pill.valid { background: var(--success-soft); color: var(--success); }
 .pill.neutral { background: var(--surface-3); color: var(--text-2); }
+.pill.info { background: var(--brand-soft); color: var(--brand); }
+.num { font-variant-numeric: tabular-nums; }
+.num.neg { color: var(--danger); }
 
 /* ==========================================================================
    هيكل التطبيق
@@ -1024,7 +1027,7 @@ tr.clickable { cursor: pointer; }
 .combo-list small { color: var(--muted); font-size: 12px; }
 
 /* ملخص الأقسام في لوحة المتابعة */
-.overview { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+.overview { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; margin-bottom: 20px; }
 .ov-tile {
   display: flex;
   gap: 12px;
@@ -1236,9 +1239,6 @@ body.drawer-open .toasts { inset-inline-end: auto; inset-inline-start: 24px; }
 
 @keyframes bob { 50% { transform: translateY(-4px); } }
 
-@media (max-width: 1180px) {
-  .overview { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
 @media (max-width: 700px) {
   .overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .details, .child-grid { grid-template-columns: 1fr; }
