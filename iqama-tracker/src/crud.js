@@ -144,7 +144,7 @@ async function deleteDocuments(type, id) {
     'DELETE FROM documents WHERE entity_type = $1 AND entity_id = $2 RETURNING stored_name',
     [type, id],
   );
-  for (const r of rows) fs.promises.unlink(path.join(UPLOAD_DIR, r.stored_name)).catch(() => {});
+  await Promise.all(rows.map((r) => fs.promises.unlink(path.join(UPLOAD_DIR, r.stored_name)).catch(() => {})));
 }
 
 const docColumns = 'id, entity_type, entity_id, title, original_name, mime_type, size_bytes, uploaded_by, created_at';
