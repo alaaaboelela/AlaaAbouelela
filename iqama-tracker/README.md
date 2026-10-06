@@ -68,17 +68,23 @@ npm start
 
 بيانات تجريبية: `npm run seed -- 300` ثم `npm run seed-demo`.
 
-## التشغيل على سيرفر (PostgreSQL)
+## التشغيل على سيرفر (بأمر واحد)
 
-على السيرفر استخدمي PostgreSQL حقيقي عن طريق ضبط `DATABASE_URL` في ملف `.env`:
+على سيرفر **Ubuntu 22.04 أو 24.04** جديد:
 
 ```bash
-npm install
-cp .env.example .env        # عدلي DATABASE_URL و SESSION_SECRET وإعدادات الإيميل
-npm run migrate             # ينشئ قاعدة البيانات والجداول تلقائيًا
-npm run create-user -- admin 'كلمة-مرور-قوية'
-npm start
+curl -fsSL https://raw.githubusercontent.com/alaaaboelela/AlaaAbouelela/claude/accommodations-expiry-alerts-lbi6qw/iqama-tracker/deploy/install.sh | sudo bash
 ```
+
+السكربت هيسأل عن الدومين (اختياري)، واسم وكلمة مرور المدير، وإعدادات الإيميل (اختياري)، وبعدين يجهّز كل حاجة:
+Node.js، PostgreSQL، Nginx، شهادة HTTPS مجانية، تشغيل تلقائي بعد إعادة التشغيل، جدار حماية، ونسخ احتياطي يومي في `/var/backups/iqama`.
+
+- **التحديث لآخر نسخة:** `sudo bash /opt/iqama/app/iqama-tracker/deploy/update.sh`
+- **سجل البرنامج:** `sudo journalctl -u iqama -f`
+- **إعادة التشغيل:** `sudo systemctl restart iqama`
+- **الإعدادات:** `/opt/iqama/app/iqama-tracker/.env`
+
+### التثبيت اليدوي على سيرفر
 
 ### إنشاء قاعدة البيانات
 

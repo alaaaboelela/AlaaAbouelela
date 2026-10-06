@@ -16,6 +16,8 @@ const config = {
   // "اليوم" يُحسب بتوقيت السعودية مهما كان توقيت الخادم
   timeZone: process.env.APP_TIMEZONE || 'Asia/Riyadh',
   isProduction,
+  // كوكي الدخول يُرسل عبر HTTPS فقط في الإنتاج؛ COOKIE_SECURE=false للتشغيل عبر http قبل ربط دومين
+  cookieSecure: process.env.COOKIE_SECURE ? process.env.COOKIE_SECURE === 'true' : isProduction,
   smtp: {
     host: process.env.SMTP_HOST || '',
     port: Number(process.env.SMTP_PORT) || 587,

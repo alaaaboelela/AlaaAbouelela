@@ -60,7 +60,7 @@ function getCookie(req, name) {
 
 function setSessionCookie(res, token, maxAgeSeconds) {
   const parts = [`${COOKIE}=${token}`, 'Path=/', 'HttpOnly', 'SameSite=Lax', `Max-Age=${maxAgeSeconds}`];
-  if (config.isProduction) parts.push('Secure');
+  if (config.cookieSecure) parts.push('Secure');
   res.setHeader('Set-Cookie', parts.join('; '));
 }
 
