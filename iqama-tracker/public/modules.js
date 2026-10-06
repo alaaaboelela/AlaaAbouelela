@@ -121,8 +121,8 @@ const Modules = (() => {
         <td>${statusPill(m, r.status)}</td>
         <td><div class="row-actions">
           <button class="icon-btn" data-mopen="${r.id}" title="التفاصيل والمستندات">${icon('folder')}</button>
-          <button class="icon-btn" data-medit="${r.id}" title="تعديل">${icon('edit')}</button>
-          <button class="icon-btn danger" data-mdelete="${r.id}" title="حذف">${icon('trash')}</button>
+          ${can(key, 'write') ? `<button class="icon-btn" data-medit="${r.id}" title="تعديل">${icon('edit')}</button>
+          <button class="icon-btn danger" data-mdelete="${r.id}" title="حذف">${icon('trash')}</button>` : ''}
         </div></td>
       </tr>`).join('');
     $('mEmpty').hidden = data.items.length > 0;
@@ -400,8 +400,8 @@ const Modules = (() => {
 
     $('dTitle').textContent = r[m.title] || m.singular;
     $('dSub').innerHTML = statusPill(m, r.status) + (r.days_left != null ? ` <span class="muted">${remainingText(r.days_left)}</span>` : '');
-    $('dActions').innerHTML = `<button class="icon-btn bordered" data-d="edit" title="تعديل">${icon('edit')}</button>
-      <button class="icon-btn bordered danger" data-d="delete" title="حذف">${icon('trash')}</button>`;
+    $('dActions').innerHTML = can(key, 'write') ? `<button class="icon-btn bordered" data-d="edit" title="تعديل">${icon('edit')}</button>
+      <button class="icon-btn bordered danger" data-d="delete" title="حذف">${icon('trash')}</button>` : '';
     $('dActions').onclick = (e) => {
       const a = e.target.closest('[data-d]')?.dataset.d;
       if (a === 'edit') openForm(key, r, () => { reload(); openDrawer(key, id); });
@@ -433,7 +433,7 @@ const Modules = (() => {
       <section class="d-section"><h3>${icon('file', 'icon-sm')}البيانات</h3>${detailsHtml(m, r)}</section>
       ${Object.entries(m.children).map(([ck, c]) => `<section class="d-section" data-child="${ck}">
         <div class="d-head"><h3>${icon(ck === 'events' ? 'wrench' : 'wallet', 'icon-sm')}${esc(c.label)}</h3>
-          <button class="btn btn-ghost btn-sm" data-add-child>${icon('plus', 'icon-sm')}إضافة</button></div>
+          ${can(key, 'write') ? `<button class="btn btn-ghost btn-sm" data-add-child>${icon('plus', 'icon-sm')}إضافة</button>` : ''}</div>
         <form class="child-form" hidden novalidate></form>
         <div class="child-list"><div class="drawer-loading"><span class="spinner"></span></div></div></section>`).join('')}
       <section class="d-section" id="dDocs"></section>`;
@@ -452,7 +452,8 @@ const Modules = (() => {
       <div class="child-actions"><button class="btn btn-ghost btn-sm" type="button" data-cancel>إلغاء</button>
       <button class="btn btn-primary btn-sm" type="submit">حفظ</button></div>`;
     bindFormExtras(formEl);
-    section.querySelector('[data-add-child]').onclick = () => { formEl.hidden = !formEl.hidden; };
+    const addBtn = section.querySelector('[data-add-child]');
+    if (addBtn) addBtn.onclick = () => { formEl.hidden = !formEl.hidden; };
     formEl.querySelector('[data-cancel]').onclick = () => { formEl.hidden = true; };
     formEl.onsubmit = async (e) => {
       e.preventDefault();
@@ -476,7 +477,7 @@ const Modules = (() => {
       ? `<ol class="timeline">${rows.map((ev) => `
           <li class="${ev.event_type === 'تحديث بيانات' ? 'update' : ''}">
             <div class="tl-head"><strong>${esc(ev.event_type)}</strong><span class="muted">${esc(fmtGregorian(ev.event_date, 'short'))}</span>
-              <button class="icon-btn danger tiny" data-del-child="${ev.id}" title="حذف">${icon('trash', 'icon-sm')}</button></div>
+              ${can(key, 'write') ? `<button class="icon-btn danger tiny" data-del-child="${ev.id}" title="حذف">${icon('trash', 'icon-sm')}</button>` : ''}</div>
             <div class="tl-meta">
               ${ev.cost != null ? `<span>${icon('wallet', 'icon-sm')}${money(ev.cost)}</span>` : ''}
               ${ev.odometer != null ? `<span>${icon('steering', 'icon-sm')}${fmt(ev.odometer)} كم</span>` : ''}
@@ -488,7 +489,7 @@ const Modules = (() => {
       : `<ul class="payments">${rows.map((p) => `
           <li><span class="pay-icon">${icon('check', 'icon-sm')}</span>
             <div><strong>${money(p.amount)}</strong><small class="muted">${esc(fmtGregorian(p.paid_date, 'short'))}${p.note ? ` · ${esc(p.note)}` : ''}</small></div>
-            <button class="icon-btn danger tiny" data-del-child="${p.id}" title="حذف">${icon('trash', 'icon-sm')}</button></li>`).join('')}</ul>`;
+            ${can(key, 'write') ? `<button class="icon-btn danger tiny" data-del-child="${p.id}" title="حذف">${icon('trash', 'icon-sm')}</button>` : ''}</li>`).join('')}</ul>`;
     listEl.onclick = async (e) => {
       const b = e.target.closest('[data-del-child]');
       if (!b || !(await confirmDialog('حذف هذا السجل نهائيًا؟'))) return;
@@ -504,8 +505,9 @@ const Modules = (() => {
   const sizeText = (b) => (b > 1048576 ? `${(b / 1048576).toFixed(1)} م.ب` : `${Math.max(1, Math.round(b / 1024))} ك.ب`);
 
   async function renderDocuments(section, entity, id) {
+    const writable = can(entity, 'write');
     section.innerHTML = `<div class="d-head"><h3>${icon('paperclip', 'icon-sm')}المستندات <span class="count" id="docCount"></span></h3></div>
-      <label class="dropzone" id="dropzone">
+      <label class="dropzone" id="dropzone" ${writable ? '' : 'hidden'}>
         <input type="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx">
         <span class="dz-icon">${icon('upload')}</span>
         <strong>اسحب الملفات هنا أو اضغط للاختيار</strong>
@@ -529,7 +531,7 @@ const Modules = (() => {
             <small class="muted">${sizeText(d.size_bytes)} · ${esc(fmtGregorian(d.created_at.slice(0, 10), 'short'))}${d.uploaded_by ? ` · ${esc(d.uploaded_by)}` : ''}</small></div>
           ${viewable ? `<a class="icon-btn" href="/api/documents/${d.id}/file?inline=1" target="_blank" rel="noopener" title="عرض">${icon('eye')}</a>` : ''}
           <a class="icon-btn" href="/api/documents/${d.id}/file" title="تنزيل">${icon('download')}</a>
-          <button class="icon-btn danger" data-del-doc="${d.id}" title="حذف">${icon('trash')}</button>
+          ${writable ? `<button class="icon-btn danger" data-del-doc="${d.id}" title="حذف">${icon('trash')}</button>` : ''}
         </li>`;
       }).join('') || '<li class="muted small empty-docs">لا توجد مستندات مرفوعة بعد.</li>';
     };
@@ -596,7 +598,7 @@ const Modules = (() => {
 
     const list = (key, rows, render) => `<section class="d-section">
       <div class="d-head"><h3>${icon(schema[key].icon, 'icon-sm')}${esc(schema[key].label)} <span class="count">${rows.length || ''}</span></h3>
-        <button class="btn btn-ghost btn-sm" data-emp-add="${key}">${icon('plus', 'icon-sm')}إضافة</button></div>
+        ${can(key, 'write') ? `<button class="btn btn-ghost btn-sm" data-emp-add="${key}">${icon('plus', 'icon-sm')}إضافة</button>` : ''}</div>
       ${rows.length ? `<ul class="mini-list">${rows.map((x) => `<li data-emp-open="${key}:${x.id}">${render(x)}${statusPill(schema[key], x.status)}</li>`).join('')}</ul>`
         : '<p class="muted small">لا يوجد.</p>'}</section>`;
 
@@ -651,11 +653,11 @@ const Modules = (() => {
 
   async function loadOverview() {
     const o = await api('/api/overview');
-    const tile = (key, value, label, tone, extra = '') => `
+    const tile = (key, value, label, tone, extra = '') => (!can(key) ? '' : `
       <a class="ov-tile ${tone}" href="#${key}">
         <span class="ov-icon">${icon(schema[key].icon)}</span>
         <div><small>${esc(schema[key].label)}</small><b>${value}</b><span>${label}</span></div>${extra}
-      </a>`;
+      </a>`);
     const c = (k) => o[k].counts;
     $('overview').innerHTML = [
       tile('contracts', fmt(c('contracts').expiring + c('contracts').expired), `ينتهي قريبًا ${fmt(c('contracts').expiring)} · منتهي ${fmt(c('contracts').expired)}`, c('contracts').expiring + c('contracts').expired ? 'warn' : 'ok'),

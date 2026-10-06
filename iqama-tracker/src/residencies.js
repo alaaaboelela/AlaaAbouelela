@@ -3,6 +3,7 @@ const { pool, getAlertDays, setSetting } = require('./db');
 const { parseCsv, toCsv } = require('./csv');
 const { hijriToGregorian, gregorianToHijri } = require('../public/hijri');
 const config = require('./config');
+const audit = require('./audit');
 
 const router = express.Router();
 
@@ -283,6 +284,7 @@ router.post('/residencies/import', express.text({ type: '*/*', limit: '30mb' }),
     client.release();
   }
 
+  audit.log(req, 'import', 'residencies', '', `استيراد إقامات: إضافة ${inserted}، تحديث ${updated}، أخطاء ${errors.length}`);
   res.json({ inserted, updated, failed: errors.length, errors: errors.slice(0, 200) });
 });
 
@@ -298,6 +300,7 @@ router.post('/residencies', async (req, res) => {
       [today(), value.name, value.iqamaNumber, value.expiryDate,
         value.nationality, value.phone, value.employer, value.notes],
     );
+    audit.log(req, 'create', 'residencies', rows[0].id, `إقامة: ${value.name} (${value.iqamaNumber})`);
     return res.status(201).json(toApi(rows[0], await getAlertDays()));
   } catch (err) {
     if (duplicateError(err, res)) return undefined;
@@ -326,6 +329,7 @@ router.put('/residencies/:id', async (req, res) => {
   if (!id) return undefined;
   const { errors, value } = validate(req.body || {});
   if (errors.length) return res.status(400).json({ error: errors.join('، ') });
+  const { rows: [before] } = await pool.query('SELECT * FROM residencies WHERE id = $1', [id]);
   try {
     const { rows } = await pool.query(
       `UPDATE residencies SET name = $3, iqama_number = $4, expiry_date = $5, nationality = $6,
@@ -335,6 +339,10 @@ router.put('/residencies/:id', async (req, res) => {
         value.nationality, value.phone, value.employer, value.notes],
     );
     if (!rows.length) return res.status(404).json({ error: 'الإقامة غير موجودة' });
+    audit.log(req, 'update', 'residencies', id, `إقامة: ${value.name} (${value.iqamaNumber})`, audit.diff(before, {
+      name: value.name, iqama_number: value.iqamaNumber, expiry_date: value.expiryDate, nationality: value.nationality,
+      phone: value.phone, employer: value.employer, notes: value.notes,
+    }, { name: 'الاسم', iqama_number: 'رقم الإقامة', expiry_date: 'تاريخ الانتهاء', nationality: 'الجنسية', phone: 'الجوال', employer: 'جهة العمل', notes: 'ملاحظات' }));
     return res.json(toApi(rows[0], await getAlertDays()));
   } catch (err) {
     if (duplicateError(err, res)) return undefined;
@@ -346,6 +354,7 @@ router.delete('/residencies/:id', async (req, res) => {
   const id = parseId(req, res);
   if (!id) return;
   let rowCount;
+  const { rows: [existing] } = await pool.query('SELECT name, iqama_number FROM residencies WHERE id = $1', [id]);
   try {
     ({ rowCount } = await pool.query('DELETE FROM residencies WHERE id = $1', [id]));
   } catch (err) {
@@ -356,6 +365,7 @@ router.delete('/residencies/:id', async (req, res) => {
   }
   if (!rowCount) return res.status(404).json({ error: 'الإقامة غير موجودة' });
   await require('./crud').deleteDocuments('residencies', id);
+  audit.log(req, 'delete', 'residencies', id, `إقامة: ${existing.name} (${existing.iqama_number})`);
   return res.status(204).end();
 });
 
@@ -370,7 +380,9 @@ router.put('/settings', async (req, res) => {
   if (!Number.isInteger(days) || days < 1 || days > 365) {
     return res.status(400).json({ error: 'عدد أيام التنبيه يجب أن يكون بين 1 و 365' });
   }
+  const old = await getAlertDays();
   await setSetting('alert_days', days);
+  audit.log(req, 'settings', 'settings', '', `مدة التنبيه: ${old} ← ${days} يوم`);
   return res.json({ alertDays: days });
 });
 

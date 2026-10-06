@@ -24,7 +24,7 @@ test('الأقسام', { skip: !TEST_DB && 'TEST_DATABASE_URL غير مضبوط'
 
   await migrate();
   await pool.query(`TRUNCATE residencies, users, contracts, driver_cards, cars, car_events, advances,
-    advance_payments, custody, documents, evaluations RESTART IDENTITY CASCADE`);
+    advance_payments, custody, documents, evaluations, audit_log RESTART IDENTITY CASCADE`);
   await pool.query("UPDATE settings SET value = '30' WHERE key = 'alert_days'");
   await pool.query('INSERT INTO users (username, password_hash) VALUES ($1, $2)', ['admin', hashPassword('secret123')]);
   const { rows: [emp] } = await pool.query(

@@ -6,6 +6,26 @@ const auth = require('./auth');
 const { router: residencies } = require('./residencies');
 const { router: modules } = require('./crud');
 const alerts = require('./alerts');
+const { router: users } = require('./users');
+const { can, permissionsFor, ROLES } = require('./permissions');
+
+// القسم المطلوب لكل مسار (null = متاح لأي مستخدم مسجّل)
+function sectionFor(req) {
+  const p = req.path;
+  const m = p.match(/^\/m\/([a-z_]+)/);
+  if (m) return m[1];
+  if (/^\/(residencies|stats|employees|alerts)(\/|$)/.test(p)) return p.startsWith('/alerts/send-email') ? 'settings' : 'residencies';
+  if (p === '/settings' && req.method !== 'GET') return 'settings';
+  if (p === '/documents') return String(req.query.entity || 'unknown');
+  return null;
+}
+
+function authorize(req, res, next) {
+  const section = sectionFor(req);
+  if (!section) return next();
+  const mode = req.method === 'GET' ? 'read' : 'write';
+  return can(req.user, section, mode) ? next() : res.status(403).json({ error: 'ليس لديك صلاحية لهذا الإجراء' });
+}
 
 function createApp() {
   const app = express();
@@ -25,11 +45,18 @@ function createApp() {
   app.post('/api/logout', auth.logout);
 
   app.use('/api', auth.requireAuth);
+  app.use('/api', authorize);
   app.get('/api/me', (req, res) => res.json({
+    id: String(req.user.id),
     username: req.user.name,
+    fullName: req.user.fullName,
+    role: req.user.role,
+    roleLabel: ROLES[req.user.role]?.label || req.user.role,
+    permissions: permissionsFor(req.user.role),
     emailEnabled: alerts.emailEnabled(),
     alertEmails: config.alertEmails,
   }));
+  app.use('/api', users);
   app.use('/api', residencies);
   app.use('/api', modules);
 

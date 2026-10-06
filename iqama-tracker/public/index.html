@@ -32,11 +32,16 @@
         <a href="#contracts" data-view="contracts"><svg class="icon"><use href="icons.svg#i-contract"/></svg>العقود<span class="nav-badge" data-badge="contracts"></span></a>
         <a href="#cars" data-view="cars"><svg class="icon"><use href="icons.svg#i-car"/></svg>السيارات<span class="nav-badge" data-badge="cars"></span></a>
         <span class="nav-label">النظام</span>
+        <a href="#users" data-view="users"><svg class="icon"><use href="icons.svg#i-users"/></svg>المستخدمين</a>
+        <a href="#audit" data-view="audit"><svg class="icon"><use href="icons.svg#i-history"/></svg>سجل العمليات</a>
         <a href="#settings" data-view="settings"><svg class="icon"><use href="icons.svg#i-settings"/></svg>الإعدادات</a>
       </nav>
       <div class="sidebar-foot">
         <span class="avatar" id="avatar"></span>
-        <div class="who"><strong id="username">—</strong><small>مسؤول النظام</small></div>
+        <div class="who"><strong id="username">—</strong><small id="roleLabel"></small></div>
+        <button class="icon-btn" id="pwdBtn" type="button" title="تغيير كلمة المرور" aria-label="تغيير كلمة المرور">
+          <svg class="icon"><use href="icons.svg#i-key"/></svg>
+        </button>
         <button class="icon-btn" id="logout" type="button" title="تسجيل الخروج" aria-label="تسجيل الخروج">
           <svg class="icon"><use href="icons.svg#i-logout"/></svg>
         </button>
@@ -233,6 +238,53 @@
           </div>
         </section>
 
+        <!-- المستخدمين -->
+        <section class="view" id="view-users">
+          <div class="card">
+            <div class="list-head">
+              <div><h2 class="card-title">مستخدمي النظام</h2><p class="card-sub" id="usersSub">&nbsp;</p></div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>المستخدم</th><th>الدور</th><th>الحالة</th><th>آخر دخول</th><th><span class="sr-only">إجراءات</span></th></tr></thead>
+                <tbody id="usersRows"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card roles-card">
+            <div class="card-head"><div><h2 class="card-title">صلاحيات الأدوار</h2><p class="card-sub">✎ تعديل · 👁 قراءة فقط · — بدون وصول</p></div></div>
+            <div class="table-wrap"><table class="matrix" id="rolesMatrix"></table></div>
+          </div>
+        </section>
+
+        <!-- سجل العمليات -->
+        <section class="view" id="view-audit">
+          <div class="card">
+            <div class="toolbar">
+              <div class="input-icon search">
+                <svg class="icon"><use href="icons.svg#i-search"/></svg>
+                <input class="input" id="auditQ" type="search" placeholder="ابحث في التفاصيل..." aria-label="بحث">
+              </div>
+              <select class="input" id="auditUser" aria-label="المستخدم"><option value="">كل المستخدمين</option></select>
+              <select class="input" id="auditAction" aria-label="العملية"><option value="">كل العمليات</option></select>
+              <input class="input" id="auditFrom" type="date" aria-label="من تاريخ" title="من تاريخ">
+              <input class="input" id="auditTo" type="date" aria-label="إلى تاريخ" title="إلى تاريخ">
+            </div>
+            <ol class="audit-list" id="auditRows"></ol>
+            <div class="empty" id="auditEmpty" hidden>
+              <span class="empty-icon"><svg class="icon"><use href="icons.svg#i-history"/></svg></span>
+              <strong>لا توجد عمليات</strong>
+            </div>
+            <div class="pager">
+              <span id="auditInfo"></span>
+              <div class="pages">
+                <button class="btn btn-ghost btn-sm" id="auditPrev" type="button"><svg class="icon-sm"><use href="icons.svg#i-chevron-right"/></svg>السابق</button>
+                <button class="btn btn-ghost btn-sm" id="auditNext" type="button">التالي<svg class="icon-sm"><use href="icons.svg#i-chevron-left"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- الإعدادات -->
         <section class="view" id="view-settings">
           <div class="settings-grid">
@@ -382,6 +434,52 @@
     <div class="drawer-body" id="dBody"></div>
   </aside>
 
+  <!-- نافذة المستخدم -->
+  <dialog id="userModal" aria-labelledby="userModalTitle">
+    <form id="userForm" novalidate>
+      <div class="modal-head">
+        <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-shield-user"/></svg></span>
+        <h2 id="userModalTitle">مستخدم جديد</h2>
+        <button class="icon-btn" type="button" data-close aria-label="إغلاق"><svg class="icon"><use href="icons.svg#i-x"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-error" id="userError" role="alert" hidden><svg class="icon"><use href="icons.svg#i-alert"/></svg><span></span></div>
+        <input type="hidden" name="id">
+        <label class="field"><span>اسم المستخدم (للدخول) <b class="req">*</b></span><input class="input mono" name="username" autocomplete="off" placeholder="ahmed" maxlength="30"></label>
+        <label class="field"><span>الاسم الكامل</span><input class="input" name="full_name" maxlength="100"></label>
+        <label class="field"><span>الدور <b class="req">*</b></span><select class="input" name="role" id="userRole"></select></label>
+        <label class="field"><span id="userPwdLabel">كلمة المرور <b class="req">*</b></span><input class="input" name="password" type="password" autocomplete="new-password" placeholder="8 أحرف على الأقل"></label>
+        <label class="check wide"><input type="checkbox" name="active" checked> الحساب فعّال (يقدر يسجل دخول)</label>
+        <p class="card-sub wide" id="roleHint"></p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" type="button" data-close>إلغاء</button>
+        <button class="btn btn-primary" type="submit" id="userSubmit">حفظ</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- تغيير كلمة المرور -->
+  <dialog id="pwdModal" aria-labelledby="pwdTitle" class="narrow">
+    <form id="pwdForm" novalidate>
+      <div class="modal-head">
+        <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-key"/></svg></span>
+        <h2 id="pwdTitle">تغيير كلمة المرور</h2>
+        <button class="icon-btn" type="button" data-close aria-label="إغلاق"><svg class="icon"><use href="icons.svg#i-x"/></svg></button>
+      </div>
+      <div class="modal-body single">
+        <div class="form-error" id="pwdError" role="alert" hidden><svg class="icon"><use href="icons.svg#i-alert"/></svg><span></span></div>
+        <label class="field"><span>كلمة المرور الحالية</span><input class="input" name="current" type="password" autocomplete="current-password"></label>
+        <label class="field"><span>كلمة المرور الجديدة</span><input class="input" name="next" type="password" autocomplete="new-password" placeholder="8 أحرف على الأقل"></label>
+        <label class="field"><span>تأكيد كلمة المرور الجديدة</span><input class="input" name="confirm" type="password" autocomplete="new-password"></label>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" type="button" data-close>إلغاء</button>
+        <button class="btn btn-primary" type="submit">حفظ</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- نافذة تأكيد الحذف -->
   <dialog id="confirmModal">
     <div class="confirm-body">
@@ -400,5 +498,6 @@
   <script src="hijri.js"></script>
   <script src="app.js"></script>
   <script src="modules.js"></script>
+  <script src="admin.js"></script>
 </body>
 </html>

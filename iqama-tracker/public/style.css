@@ -1245,6 +1245,38 @@ body.drawer-open .toasts { inset-inline-end: auto; inset-inline-start: 24px; }
   .summary-strip b { font-size: 14px; }
 }
 
+
+/* ---------- المستخدمين وسجل العمليات ---------- */
+
+.roles-card { margin-top: 16px; }
+.matrix th, .matrix td { text-align: center; }
+.matrix th:first-child, .matrix td:first-child { text-align: start; }
+.perm { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; font-size: 14px; }
+.perm.w { background: var(--success-soft); color: var(--success); }
+.perm.r { background: var(--brand-soft); }
+.perm.n { color: var(--muted); }
+tr.inactive td { opacity: .55; }
+
+.check { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+.check input { width: 18px; height: 18px; accent-color: var(--brand); }
+dialog.narrow { width: min(440px, calc(100vw - 32px)); }
+.modal-body.single { grid-template-columns: 1fr; }
+
+.audit-list { list-style: none; margin: 0; padding: 8px 20px; }
+.audit-list li { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); animation: row-in .35s var(--ease) both; }
+.audit-list li:first-child { border-top: 0; }
+.a-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; flex: none; background: var(--surface-3); color: var(--text-2); }
+.a-create .a-icon, .a-upload .a-icon, .a-import .a-icon { background: var(--success-soft); color: var(--success); }
+.a-update .a-icon, .a-settings .a-icon, .a-password .a-icon { background: var(--brand-soft); color: var(--brand); }
+.a-delete .a-icon, .a-login_failed .a-icon { background: var(--danger-soft); color: var(--danger); }
+.a-body { flex: 1; min-width: 0; }
+.a-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; }
+.a-head time { margin-inline-start: auto; font-size: 12.5px; }
+.a-body p { font-size: 13.5px; color: var(--text-2); margin-top: 2px; }
+.a-changes { margin: 6px 0 0; padding: 8px 12px; list-style: none; border-radius: 8px; background: var(--surface-2); font-size: 12.5px; color: var(--text-2); display: grid; gap: 2px; }
+.a-changes s { color: var(--muted); }
+#view-audit .toolbar select.input, #view-audit .toolbar input[type=date] { width: auto; min-width: 140px; height: 40px; }
+
 /* ==========================================================================
    الحركات
    ========================================================================== */

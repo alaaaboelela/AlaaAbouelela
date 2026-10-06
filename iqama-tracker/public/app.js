@@ -16,7 +16,35 @@ const VIEWS = {
   dashboard: { title: 'لوحة المتابعة', subtitle: 'نظرة عامة على حالة إقامات الموظفين' },
   residencies: { title: 'الإقامات', subtitle: 'إدارة بيانات الإقامات وتواريخ انتهائها' },
   settings: { title: 'الإعدادات', subtitle: 'التنبيهات والمظهر والاستيراد' },
+  users: { title: 'المستخدمين', subtitle: 'حسابات الدخول والأدوار والصلاحيات' },
+  audit: { title: 'سجل العمليات', subtitle: 'كل الإضافات والتعديلات والحذف ومين عملها' },
 };
+
+// ---------- الصلاحيات ----------
+
+// القسم الذي تتبعه كل صفحة (الأقسام العامة تتبع نفسها)
+const VIEW_SECTION = { residencies: 'residencies', users: 'users', audit: 'audit', dashboard: null, settings: null };
+const sectionOfView = (view) => (view in VIEW_SECTION ? VIEW_SECTION[view] : view);
+
+function can(section, mode = 'read') {
+  if (!section) return true;
+  const level = state.me?.permissions?.[section];
+  return mode === 'read' ? Boolean(level) : level === 'write';
+}
+
+function applyNavPermissions() {
+  for (const link of $$('.nav a')) link.hidden = !can(sectionOfView(link.dataset.view));
+  // إخفاء عناوين المجموعات الفارغة
+  for (const label of $$('.nav .nav-label')) {
+    let el = label.nextElementSibling;
+    let visible = false;
+    while (el && !el.classList.contains('nav-label')) {
+      if (el.tagName === 'A' && !el.hidden) visible = true;
+      el = el.nextElementSibling;
+    }
+    label.hidden = !visible;
+  }
+}
 
 const STATUS = {
   expired: { label: 'منتهية', icon: 'x-circle' },
@@ -153,8 +181,11 @@ function confirmDialog(text) {
 // ---------- التنقل ----------
 
 function showView(view) {
-  const isModule = typeof Modules !== 'undefined' && Modules.has(view);
-  if (!VIEWS[view] && !isModule) view = 'dashboard';
+  let isModule = typeof Modules !== 'undefined' && Modules.has(view);
+  if ((!VIEWS[view] && !isModule) || !can(sectionOfView(view))) {
+    view = 'dashboard';
+    isModule = false;
+  }
   state.view = view;
   const sectionId = isModule ? 'view-module' : `view-${view}`;
   for (const section of $$('.view')) section.classList.toggle('active', section.id === sectionId);
@@ -163,13 +194,18 @@ function showView(view) {
   $('viewTitle').textContent = meta.title;
   $('viewSubtitle').textContent = meta.subtitle;
   document.title = `${meta.title} — منصة الإقامات`;
-  $('addBtn').querySelector('.add-label').textContent = isModule ? `إضافة ${meta.singular}` : 'إضافة إقامة';
+  $('addBtn').querySelector('.add-label').textContent = isModule ? `إضافة ${meta.singular}`
+    : view === 'users' ? 'إضافة مستخدم' : 'إضافة إقامة';
+  const addSection = isModule ? view : view === 'users' ? 'users' : view === 'audit' ? '__none' : 'residencies';
+  $('addBtn').hidden = !can(addSection, 'write');
   document.body.classList.remove('nav-open');
   window.scrollTo({ top: 0 });
 
   if (view === 'dashboard') loadDashboard();
   if (view === 'residencies') loadList();
   if (view === 'settings') loadSettings();
+  if (view === 'users') Admin.showUsers();
+  if (view === 'audit') Admin.showAudit();
   if (isModule) Modules.show(view);
 }
 
@@ -400,8 +436,8 @@ async function loadList() {
       <td><span class="pill ${r.status}">${icon(STATUS[r.status].icon, 'icon-sm')}${STATUS[r.status].label}</span></td>
       <td><div class="row-actions">
         <button class="icon-btn" data-profile="${r.id}" title="ملف الموظف والمستندات" aria-label="ملف ${esc(r.name)}">${icon('folder')}</button>
-        <button class="icon-btn" data-edit="${r.id}" title="تعديل" aria-label="تعديل ${esc(r.name)}">${icon('edit')}</button>
-        <button class="icon-btn danger" data-delete="${r.id}" title="حذف" aria-label="حذف ${esc(r.name)}">${icon('trash')}</button>
+        ${can('residencies', 'write') ? `<button class="icon-btn" data-edit="${r.id}" title="تعديل" aria-label="تعديل ${esc(r.name)}">${icon('edit')}</button>
+        <button class="icon-btn danger" data-delete="${r.id}" title="حذف" aria-label="حذف ${esc(r.name)}">${icon('trash')}</button>` : ''}
       </div></td>
     </tr>`).join('');
   $('empty').hidden = data.items.length > 0;
@@ -554,7 +590,11 @@ function openForm(record) {
   setTimeout(() => form.elements.name.focus(), 50);
 }
 
-$('addBtn').addEventListener('click', () => (Modules.has(state.view) ? Modules.openForm(state.view) : openForm(null)));
+$('addBtn').addEventListener('click', () => {
+  if (Modules.has(state.view)) return Modules.openForm(state.view);
+  if (state.view === 'users') return Admin.openUser(null);
+  return openForm(null);
+});
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -604,6 +644,8 @@ async function loadSettings() {
     ? `<span class="pill valid">${icon('check', 'icon-sm')}مفعّلة</span> تُرسل إلى: <span class="mono">${me.alertEmails.map(esc).join('، ')}</span>`
     : `<span class="pill neutral">غير مفعّلة</span> اضبط إعدادات <span class="mono">SMTP</span> و <span class="mono">ALERT_EMAILS</span> في ملف <span class="mono">.env</span> على الخادم`;
   $('sendEmail').disabled = !me.emailEnabled;
+  const canSettings = can('settings', 'write');
+  for (const el of [$('saveSettings'), $('sendEmail'), $('alertDays'), ...$$('[data-step], [data-days]')]) el.disabled = !canSettings || (el.id === 'sendEmail' && !me.emailEnabled);
   renderNotifyStatus();
   renderThemeOptions();
 }
@@ -693,8 +735,11 @@ $('logout').addEventListener('click', async () => {
   if (!me) return; // تم التحويل لصفحة الدخول
   state.me = me;
   await Modules.init();
-  $('username').textContent = me.username;
-  $('avatar').textContent = me.username.slice(0, 1).toUpperCase();
+  $('username').textContent = me.fullName || me.username;
+  $('roleLabel').textContent = me.roleLabel;
+  $('avatar').textContent = (me.fullName || me.username).slice(0, 1).toUpperCase();
+  $('importBtn').hidden = !can('residencies', 'write');
+  applyNavPermissions();
   renderThemeOptions();
   showView(location.hash.slice(1) || 'dashboard');
   setInterval(loadStats, 60 * 60 * 1000);

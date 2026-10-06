@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { pool } = require('./db');
 const config = require('./config');
+const audit = require('./audit');
 
 const COOKIE = 'session';
 
@@ -90,13 +91,20 @@ async function login(req, res) {
   }
   const username = String(req.body?.username || '').trim();
   const password = String(req.body?.password || '');
-  const { rows } = await pool.query('SELECT id, username, password_hash FROM users WHERE username = $1', [username]);
+  const { rows } = await pool.query(
+    'SELECT id, username, password_hash, active FROM users WHERE username = $1',
+    [username],
+  );
   const user = rows[0];
   if (!user || !verifyPassword(password, user.password_hash)) {
     recordFailure(req.ip);
+    audit.log({ ...req, auditUser: username.slice(0, 100), ip: req.ip }, 'login_failed', 'users', '', 'كلمة مرور خاطئة');
     return res.status(401).json({ error: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
   }
+  if (!user.active) return res.status(403).json({ error: 'هذا الحساب موقوف، تواصل مع مدير النظام' });
   attempts.delete(req.ip);
+  await pool.query('UPDATE users SET last_login = now() WHERE id = $1', [user.id]);
+  audit.log({ user: { name: user.username }, ip: req.ip }, 'login', 'users', user.id, 'تسجيل دخول');
   setSessionCookie(res, createToken(user), config.sessionHours * 3600);
   return res.json({ username: user.username });
 }
@@ -106,11 +114,34 @@ function logout(req, res) {
   res.status(204).end();
 }
 
-function requireAuth(req, res, next) {
+// المستخدم يُقرأ من قاعدة البيانات (مع ذاكرة مؤقتة قصيرة) حتى يسري الإيقاف وتغيير الدور فورًا
+const userCache = new Map();
+const CACHE_MS = 10 * 1000;
+
+async function loadUser(id) {
+  const hit = userCache.get(id);
+  if (hit && hit.at > Date.now() - CACHE_MS) return hit.user;
+  const { rows } = await pool.query('SELECT id, username, full_name, role, active FROM users WHERE id = $1', [id]);
+  const user = rows[0] || null;
+  userCache.set(id, { user, at: Date.now() });
+  return user;
+}
+
+function forgetUser(id) {
+  userCache.delete(Number(id));
+  userCache.delete(String(id));
+}
+
+async function requireAuth(req, res, next) {
   const session = readToken(getCookie(req, COOKIE));
   if (!session) return res.status(401).json({ error: 'يجب تسجيل الدخول' });
-  req.user = session;
+  const user = await loadUser(session.uid);
+  if (!user || !user.active) {
+    setSessionCookie(res, '', 0);
+    return res.status(401).json({ error: 'يجب تسجيل الدخول' });
+  }
+  req.user = { id: user.id, name: user.username, fullName: user.full_name, role: user.role };
   return next();
 }
 
-module.exports = { hashPassword, verifyPassword, createToken, readToken, login, logout, requireAuth };
+module.exports = { hashPassword, verifyPassword, createToken, readToken, login, logout, requireAuth, forgetUser };

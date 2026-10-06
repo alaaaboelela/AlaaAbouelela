@@ -7,6 +7,8 @@ const { pool, getAlertDays } = require('./db');
 const { MODULES, publicSchema } = require('./modules');
 const { params, today, addDays } = require('./residencies');
 const config = require('./config');
+const audit = require('./audit');
+const { can } = require('./permissions');
 
 const router = express.Router();
 const str = (v) => (v == null ? '' : String(v).trim());
@@ -182,15 +184,20 @@ router.post(
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING ${docColumns}`,
       [entity, id, title, name, stored, ALLOWED[ext], req.body.length, req.user.name],
     );
+    audit.log(req, 'upload', entity, id, `مستند: ${title} (${name})`);
     return res.status(201).json(rows[0]);
   },
 );
 
 router.get('/documents/:id/file', async (req, res) => {
   if (!parseId(req.params.id)) return res.status(404).end();
-  const { rows } = await pool.query('SELECT original_name, stored_name, mime_type FROM documents WHERE id = $1', [req.params.id]);
+  const { rows } = await pool.query(
+    'SELECT original_name, stored_name, mime_type, entity_type FROM documents WHERE id = $1',
+    [req.params.id],
+  );
   if (!rows.length) return res.status(404).json({ error: 'المستند غير موجود' });
   const doc = rows[0];
+  if (!can(req.user, doc.entity_type, 'read')) return res.status(403).json({ error: 'ليس لديك صلاحية' });
   const inline = req.query.inline === '1' && /^(application\/pdf|image\/)/.test(doc.mime_type);
   res.setHeader('Content-Type', doc.mime_type);
   res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; plugin-types application/pdf");
@@ -205,9 +212,12 @@ router.get('/documents/:id/file', async (req, res) => {
 
 router.delete('/documents/:id', async (req, res) => {
   if (!parseId(req.params.id)) return res.status(404).end();
+  const { rows: [doc] } = await pool.query('SELECT entity_type, entity_id, title FROM documents WHERE id = $1', [req.params.id]);
+  if (!doc) return res.status(404).json({ error: 'المستند غير موجود' });
+  if (!can(req.user, doc.entity_type, 'write')) return res.status(403).json({ error: 'ليس لديك صلاحية' });
   const { rows } = await pool.query('DELETE FROM documents WHERE id = $1 RETURNING stored_name', [req.params.id]);
-  if (!rows.length) return res.status(404).json({ error: 'المستند غير موجود' });
   fs.promises.unlink(path.join(UPLOAD_DIR, rows[0].stored_name)).catch(() => {});
+  audit.log(req, 'delete', doc.entity_type, doc.entity_id, `مستند: ${doc.title}`);
   return res.status(204).end();
 });
 
@@ -310,7 +320,9 @@ for (const [key, m] of Object.entries(MODULES)) {
         `INSERT INTO ${m.table} (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING id`,
         cols.map((c) => values[c]),
       );
-      return res.status(201).json(await getOne(m, rows[0].id));
+      const created = await getOne(m, rows[0].id);
+      audit.log(req, 'create', key, created.id, `${m.singular}: ${created[m.title] ?? ''}`);
+      return res.status(201).json(created);
     } catch (err) {
       return dbError(err, res);
     }
@@ -336,6 +348,9 @@ for (const [key, m] of Object.entries(MODULES)) {
       );
       if (m.trackChanges) await logChanges(client, m, id, before, values, req.user.name);
       await client.query('COMMIT');
+      const labels = Object.fromEntries(m.fields.map((f) => [f.name, f.label]));
+      audit.log(req, 'update', key, id, `${m.singular}: ${before[m.title] ?? values[m.title] ?? id}`,
+        audit.diff(before, values, labels));
     } catch (err) {
       await client.query('ROLLBACK');
       return dbError(err, res);
@@ -348,13 +363,15 @@ for (const [key, m] of Object.entries(MODULES)) {
   router.delete(`/m/${key}/:id`, async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) return res.status(404).end();
+    const existing = await getOne(m, id);
+    if (!existing) return res.status(404).json({ error: `${m.singular} غير موجود` });
     try {
-      const { rowCount } = await pool.query(`DELETE FROM ${m.table} WHERE id = $1`, [id]);
-      if (!rowCount) return res.status(404).json({ error: `${m.singular} غير موجود` });
+      await pool.query(`DELETE FROM ${m.table} WHERE id = $1`, [id]);
     } catch (err) {
       return dbError(err, res);
     }
     await deleteDocuments(key, id);
+    audit.log(req, 'delete', key, id, `${m.singular}: ${existing[m.title] ?? ''}`);
     return res.status(204).end();
   });
 
@@ -385,6 +402,7 @@ for (const [key, m] of Object.entries(MODULES)) {
       if (key === 'cars' && values.odometer) {
         await pool.query('UPDATE cars SET odometer = GREATEST(COALESCE(odometer, 0), $2) WHERE id = $1', [id, values.odometer]);
       }
+      audit.log(req, 'create', key, id, `${c.label} — ${m.singular}: ${parent[m.title] ?? ''}`, values);
       return res.status(201).json(rows[0]);
     });
 
@@ -394,6 +412,7 @@ for (const [key, m] of Object.entries(MODULES)) {
       if (!id || !childId) return res.status(404).end();
       const { rowCount } = await pool.query(`DELETE FROM ${c.table} WHERE id = $1 AND ${c.fk} = $2`, [childId, id]);
       if (!rowCount) return res.status(404).json({ error: 'السجل غير موجود' });
+      audit.log(req, 'delete', key, id, `${c.label}: سجل رقم ${childId}`);
       return res.status(204).end();
     });
   }
