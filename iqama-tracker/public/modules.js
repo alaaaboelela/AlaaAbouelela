@@ -16,6 +16,7 @@ const Modules = (() => {
     employee_docs: 'الجوازات، رخص العمل، التأمين الطبي وكل مستند له تاريخ انتهاء',
     visas: 'تأشيرات الخروج والعودة ومتابعة الموظفين المسافرين والمتأخرين',
     leaves: 'طلبات الإجازات واعتمادها ورصيد الإجازة السنوية',
+    branches: 'فروع الشركة أو المنشآت المختلفة، وكل فرع ببياناته وموظفيه وسياراته وعقوده',
   };
 
   const todayIso = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riyadh' }).format(new Date());
@@ -83,6 +84,11 @@ const Modules = (() => {
 
   // ---------- عرض القسم ----------
 
+  // عمود الفرع يظهر فقط عند عرض كل الفروع
+  // قسم بحالة واحدة (مثل الفروع) لا يحتاج فلتر ولا عمود حالة
+  const hasStatus = (m) => Object.keys(m.statuses).length > 1;
+  const visibleColumns = (m) => m.columns.filter((c) => !c.branchOnly || (Branch.list.length && !Branch.current));
+
   function show(key) {
     if (ms.key !== key) {
       ms.key = key;
@@ -102,8 +108,9 @@ const Modules = (() => {
     $('mStatus').innerHTML = [['all', 'الكل'], ...Object.entries(m.statuses).map(([k, s]) => [k, s.label])]
       .map(([k, label]) => `<button type="button" data-status="${k}" aria-pressed="${k === ms.status}">${esc(label)} <span class="count" data-mcount="${k}"></span></button>`)
       .join('');
-    $('mHead').innerHTML = `<tr>${m.columns.map((c) => `<th>${esc(c.label || m.fields.find((f) => f.name === c.key)?.label || '')}</th>`).join('')}
-      <th>الحالة</th><th><span class="sr-only">إجراءات</span></th></tr>`;
+    $('mHead').innerHTML = `<tr>${visibleColumns(m).map((c) => `<th>${esc(c.label || m.fields.find((f) => f.name === c.key)?.label || '')}</th>`).join('')}
+      ${hasStatus(m) ? '<th>الحالة</th>' : ''}<th><span class="sr-only">إجراءات</span></th></tr>`;
+    $('mStatus').hidden = !hasStatus(m);
     load();
   }
 
@@ -114,7 +121,7 @@ const Modules = (() => {
     const id = ++req;
     if (!ms.items.length) {
       $('mRows').innerHTML = Array.from({ length: 5 }, () =>
-        `<tr class="skeleton">${m.columns.map(() => '<td><span style="width:90px"></span></td>').join('')}<td><span style="width:60px"></span></td><td></td></tr>`).join('');
+        `<tr class="skeleton">${visibleColumns(m).map(() => '<td><span style="width:90px"></span></td>').join('')}${hasStatus(m) ? '<td><span style="width:60px"></span></td>' : ''}<td></td></tr>`).join('');
     }
     const qs = new URLSearchParams({ page: ms.page, pageSize: 25, sort: $('mSort').value });
     if (ms.status !== 'all') qs.set('status', ms.status);
@@ -126,8 +133,8 @@ const Modules = (() => {
 
     $('mRows').innerHTML = data.items.map((r, i) => `
       <tr class="clickable" data-open="${r.id}" style="animation-delay:${Math.min(i, 12) * 25}ms">
-        ${m.columns.map((c) => `<td>${cell(c, r, m)}</td>`).join('')}
-        <td>${statusPill(m, r.status)}</td>
+        ${visibleColumns(m).map((c) => `<td>${cell(c, r, m)}</td>`).join('')}
+        ${hasStatus(m) ? `<td>${statusPill(m, r.status)}</td>` : ''}
         <td><div class="row-actions">
           <button class="icon-btn" data-mopen="${r.id}" title="التفاصيل والمستندات">${icon('folder')}</button>
           ${can(key, 'write') ? `<button class="icon-btn" data-medit="${r.id}" title="تعديل">${icon('edit')}</button>
@@ -177,6 +184,7 @@ const Modules = (() => {
     const qs = new URLSearchParams();
     if (ms.status !== 'all') qs.set('status', ms.status);
     if ($('mSearch').value.trim()) qs.set('q', $('mSearch').value.trim());
+    if (Branch.current) qs.set('branch', Branch.current);
     location.href = `/api/m/${ms.key}/export.xlsx?${qs}`;
     toast('جاري تجهيز ملف Excel...', 'info');
   });
@@ -213,6 +221,7 @@ const Modules = (() => {
     try {
       await api(`/api/m/${key}/${r.id}`, { method: 'DELETE' });
       toast(`تم حذف ${m.singular}`);
+      if (key === 'branches') loadBranches();
       closeDrawer();
       if (after) after(); else load();
     } catch (err) {
@@ -250,6 +259,11 @@ const Modules = (() => {
           ${[5, 4, 3, 2, 1].map((n) => `<input type="radio" id="r-${f.name}-${n}" name="${f.name}" value="${n}"${Number(v) === n ? ' checked' : ''}>
           <label for="r-${f.name}-${n}" title="${n} من 5">${icon('star-fill')}</label>`).join('')}
           <span class="rating-text">${RATING_TEXT[v] || 'اختر التقييم'}</span></div>`;
+        break;
+      case 'branch':
+        // الحساب المربوط بفرع أو عدم وجود فروع: الخادم يحدد الفرع تلقائيًا
+        if (Branch.locked || !Branch.list.length) return '';
+        input = `<select class="input" name="${f.name}">${branchOptions(value === undefined ? Branch.current : value)}</select>`;
         break;
       case 'employee':
         input = `<div class="combo" data-combo="${f.name}">
@@ -367,6 +381,7 @@ const Modules = (() => {
       });
       closeModal($('moduleModal'));
       toast(record ? 'تم حفظ التعديلات' : `تمت إضافة ${m.singular}`);
+      if (key === 'branches') await loadBranches();
       if (onSaved) onSaved(saved);
       else if (ms.key === key && state.view === key) load();
       if (drawerCtx?.key === key && drawerCtx.id === saved.id) openDrawer(key, saved.id);
@@ -404,9 +419,10 @@ const Modules = (() => {
   });
 
   function detailsHtml(m, r) {
-    return `<dl class="details">${m.fields.map((f) => {
+    return `<dl class="details">${m.fields.filter((f) => f.type !== 'branch' || Branch.list.length).map((f) => {
       let v = r[f.name];
       if (f.type === 'employee') v = displayNameFor(r, f);
+      if (f.type === 'branch') v = r.branch_name || branchName(v);
       let html;
       if (v == null || v === '') html = '<span class="muted">—</span>';
       else if (f.type === 'money') html = money(v);
@@ -450,6 +466,13 @@ const Modules = (() => {
       extra = `<div class="summary-strip score-strip">
         <div><small>التقييم العام</small><b class="big">${Number(r.score).toFixed(1)}<small> / 5</small></b></div>
         <div class="wide-cell">${stars(r.score, false)}<small>${esc(m.statuses[r.status].label)}</small></div></div>`;
+    }
+    if (key === 'branches') {
+      extra = `<div class="summary-strip">
+        <div><small>الموظفين</small><b>${fmt(r.employees_count)}</b></div>
+        <div><small>إقامات تحتاج تجديد</small><b class="${r.attention_count ? 'warn' : 'ok'}">${fmt(r.attention_count)}</b></div>
+        <div><small>السيارات</small><b>${fmt(r.cars_count)}</b></div>
+        <div><small>عقود سارية</small><b>${fmt(r.contracts_count)}</b></div></div>`;
     }
     if (key === 'cars') {
       extra = `<div class="summary-strip">
@@ -721,6 +744,7 @@ const Modules = (() => {
 
   return {
     init,
+    reset: () => { ms.page = 1; ms.items = []; },
     has: (key) => Boolean(schema[key]),
     meta: (key) => ({ title: schema[key].label, subtitle: SUBTITLES[key] || '', singular: schema[key].singular }),
     show,

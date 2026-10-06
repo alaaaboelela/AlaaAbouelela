@@ -2,6 +2,12 @@ const $ = (id) => document.getElementById(id);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+// الفروع: current = الفرع المعروض (فارغ = كل الفروع)، locked = الحساب مربوط بفرع
+const Branch = { list: [], current: null, locked: false };
+const branchName = (id) => Branch.list.find((b) => b.id === String(id))?.name || '';
+const branchOptions = (selected, emptyLabel = '— بدون فرع —') => `<option value="">${esc(emptyLabel)}</option>` +
+  Branch.list.map((b) => `<option value="${b.id}"${b.id === String(selected ?? '') ? ' selected' : ''}>${esc(b.name)}</option>`).join('');
+
 const state = {
   view: 'dashboard',
   page: 1,
@@ -93,7 +99,9 @@ function initials(name) {
 }
 
 async function api(url, options = {}) {
-  const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
+  const headers = { 'Content-Type': 'application/json', ...options.headers };
+  if (!Branch.locked && Branch.current) headers['X-Branch'] = Branch.current;
+  const res = await fetch(url, { ...options, headers });
   if (res.status === 401) {
     location.replace('/login.html');
     throw new Error('يجب تسجيل الدخول');
@@ -429,7 +437,7 @@ async function loadList() {
       <td><div class="person"><span class="initials">${esc(initials(r.name))}</span>
         <div><strong>${esc(r.name)}</strong><small>${esc(r.nationality || '—')}</small></div></div></td>
       <td><span class="mono">${esc(r.iqamaNumber)}</span></td>
-      <td>${esc(r.employer || '—')}</td>
+      <td>${esc(r.employer || '—')}${r.branchName && !Branch.current ? `<span class="sub">${esc(r.branchName)}</span>` : ''}</td>
       <td>${esc(fmtHijri(r.expiryDate))}<span class="sub">${esc(fmtGregorian(r.expiryDate, 'short'))}</span></td>
       <td><div class="remain ${r.status}"><span>${remainingText(r.daysLeft)}</span>
         <span class="track"><span class="fill" style="width:${progress(r)}%"></span></span></div></td>
@@ -523,6 +531,7 @@ $('exportBtn').addEventListener('click', () => {
   const params = listParams();
   params.delete('page');
   params.delete('pageSize');
+  if (Branch.current) params.set('branch', Branch.current);
   location.href = `/api/residencies/export.xlsx?${params}`;
   toast('جاري تجهيز ملف Excel...', 'info');
 });
@@ -594,6 +603,8 @@ function openForm(record) {
     form.elements[key].value = record?.[key] || '';
   }
   form.elements.annualLeaveDays.value = record?.annualLeaveDays ?? 21;
+  $('resBranchField').hidden = Branch.locked || !Branch.list.length;
+  $('resBranch').innerHTML = branchOptions(record ? record.branchId : Branch.current);
   $('modalTitle').textContent = record ? 'تعديل بيانات الإقامة' : 'إضافة إقامة جديدة';
   $('submitBtn').textContent = record ? 'حفظ التعديلات' : 'إضافة الإقامة';
   setCalendar(calendar);
@@ -741,6 +752,37 @@ $('logout').addEventListener('click', async () => {
   location.replace('/login.html');
 });
 
+// ---------- اختيار الفرع ----------
+
+async function loadBranches() {
+  Branch.locked = Boolean(state.me.branch);
+  Branch.list = await api('/api/branches').catch(() => []);
+  if (Branch.locked) {
+    Branch.current = state.me.branch.id;
+    $('branchChip').querySelector('span').textContent = state.me.branch.name;
+  } else {
+    let saved = null;
+    try { saved = localStorage.getItem('branch'); } catch { /* التخزين غير متاح */ }
+    Branch.current = Branch.list.some((b) => b.id === saved) ? saved : null;
+    $('branchSelect').innerHTML = branchOptions(Branch.current, 'كل الفروع');
+  }
+  $('branchChip').hidden = !Branch.locked;
+  $('branchPicker').hidden = Branch.locked || !Branch.list.length;
+  $('branchPicker').classList.toggle('active', Boolean(Branch.current));
+}
+
+$('branchSelect').addEventListener('change', (e) => {
+  Branch.current = e.target.value || null;
+  try { localStorage.setItem('branch', Branch.current || ''); } catch { /* التخزين غير متاح */ }
+  $('branchPicker').classList.toggle('active', Boolean(Branch.current));
+  state.page = 1;
+  state.items = [];
+  Modules.reset();
+  toast(Branch.current ? `عرض بيانات ${branchName(Branch.current)}` : 'عرض بيانات كل الفروع', 'info');
+  Modules.loadOverview().catch(() => {});
+  showView(state.view);
+});
+
 (async () => {
   const me = await api('/api/me').catch(() => null);
   if (!me) return; // تم التحويل لصفحة الدخول
@@ -751,6 +793,7 @@ $('logout').addEventListener('click', async () => {
   $('avatar').textContent = (me.fullName || me.username).slice(0, 1).toUpperCase();
   $('importBtn').hidden = !can('residencies', 'write');
   $('templateBtn').hidden = !can('residencies', 'write');
+  await loadBranches();
   applyNavPermissions();
   renderThemeOptions();
   showView(location.hash.slice(1) || 'dashboard');

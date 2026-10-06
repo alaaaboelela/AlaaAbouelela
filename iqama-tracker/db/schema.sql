@@ -257,3 +257,26 @@ CREATE TABLE IF NOT EXISTS leaves (
   CHECK (end_date >= start_date)
 );
 CREATE INDEX IF NOT EXISTS leaves_employee_idx ON leaves (employee_id, start_date);
+
+-- الفروع / المنشآت
+CREATE TABLE IF NOT EXISTS branches (
+  id             BIGSERIAL PRIMARY KEY,
+  name           TEXT NOT NULL UNIQUE,
+  city           TEXT NOT NULL DEFAULT '',
+  cr_number      TEXT NOT NULL DEFAULT '',
+  unified_number TEXT NOT NULL DEFAULT '',
+  manager        TEXT NOT NULL DEFAULT '',
+  phone          TEXT NOT NULL DEFAULT '',
+  notes          TEXT NOT NULL DEFAULT '',
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- الموظف والعقد والسيارة تتبع فرعًا؛ باقي الأقسام تتبع فرع الموظف
+ALTER TABLE residencies ADD COLUMN IF NOT EXISTS branch_id BIGINT REFERENCES branches (id) ON DELETE RESTRICT;
+ALTER TABLE contracts ADD COLUMN IF NOT EXISTS branch_id BIGINT REFERENCES branches (id) ON DELETE RESTRICT;
+ALTER TABLE cars ADD COLUMN IF NOT EXISTS branch_id BIGINT REFERENCES branches (id) ON DELETE RESTRICT;
+-- مستخدم مربوط بفرع يرى بيانات فرعه فقط (فارغ = كل الفروع)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS branch_id BIGINT REFERENCES branches (id) ON DELETE RESTRICT;
+CREATE INDEX IF NOT EXISTS residencies_branch_idx ON residencies (branch_id, expiry_date);
+CREATE INDEX IF NOT EXISTS contracts_branch_idx ON contracts (branch_id);
+CREATE INDEX IF NOT EXISTS cars_branch_idx ON cars (branch_id);

@@ -13,7 +13,7 @@ test('الصلاحيات وسجل العمليات', { skip: !TEST_DB && 'TEST_D
 
   await migrate();
   await pool.query(`TRUNCATE residencies, users, contracts, driver_cards, cars, car_events, advances,
-    advance_payments, custody, documents, evaluations, audit_log, employee_docs, visas, leaves RESTART IDENTITY CASCADE`);
+    advance_payments, custody, documents, evaluations, audit_log, employee_docs, visas, leaves, branches RESTART IDENTITY CASCADE`);
   await pool.query("INSERT INTO users (username, password_hash, role) VALUES ('boss', $1, 'admin')", [hashPassword('bosspass1')]);
 
   const server = createApp().listen(0);

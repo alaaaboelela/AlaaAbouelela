@@ -10,14 +10,15 @@ function emailEnabled() {
   return Boolean(config.smtp.host && config.alertEmails.length);
 }
 
-async function collectAlerts() {
+async function collectAlerts(branch = null) {
   const alertDays = await getAlertDays();
   const p = params();
   // المنتهية خلال آخر 30 يوم فقط، حتى لا تتكرر الإقامات القديمة كل يوم
   const expiring = statusCondition('expiring', p, alertDays);
   const recentStart = p.add(new Date(Date.parse(today()) - 30 * 86400000).toISOString().slice(0, 10));
   const todayParam = p.add(today());
-  const where = `(${expiring}) OR (expiry_date >= ${recentStart}::date AND expiry_date < ${todayParam}::date)`;
+  const branchCond = branch ? ` AND branch_id = ${p.add(branch)}` : '';
+  const where = `((${expiring}) OR (expiry_date >= ${recentStart}::date AND expiry_date < ${todayParam}::date))${branchCond}`;
 
   const [{ rows }, { rows: [{ total }] }] = await Promise.all([
     pool.query(
@@ -40,7 +41,7 @@ function buildEmail({ alertDays, total, items, modules = [] }) {
   const remaining = (d) => (d < 0 ? `منتهية منذ ${-d} يوم` : d === 0 ? 'تنتهي اليوم' : `${d} يوم`);
   const rowsHtml = items.map((r) => `
     <tr style="background:${r.daysLeft < 0 ? '#fee2e2' : '#fef3c7'}">
-      <td>${escapeHtml(r.name)}</td><td>${r.iqamaNumber}</td><td>${escapeHtml(r.employer)}</td>
+      <td>${escapeHtml(r.name)}</td><td>${r.iqamaNumber}</td><td>${escapeHtml([r.branchName, r.employer].filter(Boolean).join(' · '))}</td>
       <td>${r.expiryDate}<br><small>${r.expiryDateHijri} هـ</small></td><td>${remaining(r.daysLeft)}</td>
     </tr>`).join('');
   const more = total > items.length ? `<p>و ${total - items.length} إقامة أخرى، راجعي النظام.</p>` : '';
@@ -52,7 +53,7 @@ function buildEmail({ alertDays, total, items, modules = [] }) {
       <h2>تنبيه انتهاء الإقامات</h2>
       <p>عدد الإقامات المنتهية حديثًا أو التي ستنتهي خلال ${alertDays} يوم: <b>${total}</b></p>
       <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse">
-        <tr><th>الاسم</th><th>رقم الإقامة</th><th>جهة العمل</th><th>تاريخ الانتهاء</th><th>المتبقي</th></tr>
+        <tr><th>الاسم</th><th>رقم الإقامة</th><th>الفرع / جهة العمل</th><th>تاريخ الانتهاء</th><th>المتبقي</th></tr>
         ${rowsHtml}
       </table>${more}${modulesHtml(modules)}</div>`,
   };

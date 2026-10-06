@@ -36,7 +36,7 @@ test('API', { skip: !TEST_DB && 'TEST_DATABASE_URL غير مضبوط' }, async (
 
   await migrate();
   await pool.query(`TRUNCATE residencies, users, contracts, driver_cards, cars, car_events, advances,
-    advance_payments, custody, documents RESTART IDENTITY CASCADE`);
+    advance_payments, custody, documents, branches RESTART IDENTITY CASCADE`);
   await pool.query("UPDATE settings SET value = '30' WHERE key = 'alert_days'");
   await pool.query('INSERT INTO users (username, password_hash) VALUES ($1, $2)', ['admin', hashPassword('secret123')]);
 

@@ -32,6 +32,7 @@
         <a href="#custody" data-view="custody"><svg class="icon"><use href="icons.svg#i-box"/></svg>العهد</a>
         <a href="#evaluations" data-view="evaluations"><svg class="icon"><use href="icons.svg#i-star"/></svg>التقييمات</a>
         <span class="nav-label">الشركة</span>
+        <a href="#branches" data-view="branches"><svg class="icon"><use href="icons.svg#i-building"/></svg>الفروع والمنشآت</a>
         <a href="#contracts" data-view="contracts"><svg class="icon"><use href="icons.svg#i-contract"/></svg>العقود<span class="nav-badge" data-badge="contracts"></span></a>
         <a href="#cars" data-view="cars"><svg class="icon"><use href="icons.svg#i-car"/></svg>السيارات<span class="nav-badge" data-badge="cars"></span></a>
         <span class="nav-label">النظام</span>
@@ -62,6 +63,11 @@
           <p id="viewSubtitle"></p>
         </div>
         <div class="topbar-actions">
+          <label class="branch-picker" id="branchPicker" hidden title="الفرع المعروض">
+            <svg class="icon"><use href="icons.svg#i-building"/></svg>
+            <select id="branchSelect" aria-label="الفرع المعروض"></select>
+          </label>
+          <span class="branch-chip" id="branchChip" hidden title="حسابك مربوط بهذا الفرع"><svg class="icon"><use href="icons.svg#i-building"/></svg><span></span></span>
           <button class="icon-btn bordered" id="themeBtn" type="button" aria-label="تبديل الوضع الليلي" title="تبديل الوضع الليلي">
             <svg class="icon"><use id="themeIcon" href="icons.svg#i-moon"/></svg>
           </button>
@@ -405,6 +411,7 @@
         <label class="field"><span>الجنسية</span><input class="input" name="nationality" maxlength="100"></label>
         <label class="field"><span>رقم الجوال</span><input class="input mono" name="phone" type="tel" maxlength="30" placeholder="05XXXXXXXX"></label>
         <label class="field"><span>جهة العمل / الكفيل</span><input class="input" name="employer" maxlength="200"></label>
+        <label class="field" id="resBranchField"><span>الفرع</span><select class="input" name="branchId" id="resBranch"></select></label>
         <label class="field"><span>رصيد الإجازة السنوية (يوم)</span><input class="input" name="annualLeaveDays" type="number" min="0" max="365" placeholder="21"></label>
         <label class="field wide"><span>ملاحظات</span><textarea class="input" name="notes" rows="2" maxlength="2000"></textarea></label>
       </div>
@@ -460,6 +467,7 @@
         <label class="field"><span>اسم المستخدم (للدخول) <b class="req">*</b></span><input class="input mono" name="username" autocomplete="off" placeholder="ahmed" maxlength="30"></label>
         <label class="field"><span>الاسم الكامل</span><input class="input" name="full_name" maxlength="100"></label>
         <label class="field"><span>الدور <b class="req">*</b></span><select class="input" name="role" id="userRole"></select></label>
+        <label class="field" id="userBranchField"><span>الفرع</span><select class="input" name="branch_id" id="userBranch"></select></label>
         <label class="field"><span id="userPwdLabel">كلمة المرور <b class="req">*</b></span><input class="input" name="password" type="password" autocomplete="new-password" placeholder="8 أحرف على الأقل"></label>
         <label class="check wide"><input type="checkbox" name="active" checked> الحساب فعّال (يقدر يسجل دخول)</label>
         <p class="card-sub wide" id="roleHint"></p>

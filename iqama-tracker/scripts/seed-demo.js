@@ -15,6 +15,13 @@ async function main() {
   if (emps.length < 20) throw new Error('أضف إقامات أولًا (npm run seed)');
   const emp = () => pick(emps).id;
 
+  // فروع تجريبية وتوزيع الموظفين عليها
+  for (const [name, city, cr] of [['فرع الرياض', 'الرياض', '1010456789'], ['فرع جدة', 'جدة', '4030123456'], ['فرع الدمام', 'الدمام', '2050987654']]) {
+    await pool.query('INSERT INTO branches (name, city, cr_number) VALUES ($1, $2, $3) ON CONFLICT (name) DO NOTHING', [name, city, cr]);
+  }
+  await pool.query(`UPDATE residencies SET branch_id = (SELECT id FROM branches ORDER BY id OFFSET (residencies.id % 3) LIMIT 1)
+    WHERE branch_id IS NULL`);
+
   const companies = ['شركة المراعي', 'أرامكو السعودية', 'شركة الاتصالات السعودية', 'مجموعة بن لادن', 'شركة النهدي الطبية',
     'شركة سابك', 'بنده للتجزئة', 'شركة الخطوط السعودية للتموين', 'مجموعة الحكير', 'شركة جرير', 'شركة المياه الوطنية', 'هيئة النقل'];
   for (const [i, c] of companies.entries()) {

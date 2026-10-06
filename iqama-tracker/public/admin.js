@@ -24,7 +24,8 @@ const Admin = (() => {
       <tr style="animation-delay:${i * 25}ms" class="${u.active ? '' : 'inactive'}">
         <td><div class="person"><span class="initials">${esc((u.full_name || u.username).slice(0, 2))}</span>
           <div><strong>${esc(u.full_name || u.username)}</strong><small class="mono">${esc(u.username)}</small></div></div></td>
-        <td><span class="pill ${u.role === 'admin' ? 'valid' : 'neutral'}">${esc(u.roleLabel)}</span></td>
+        <td><span class="pill ${u.role === 'admin' ? 'valid' : 'neutral'}">${esc(u.roleLabel)}</span>
+          ${Branch.list.length ? `<span class="sub">${u.branch_name ? esc(u.branch_name) : 'كل الفروع'}</span>` : ''}</td>
         <td>${u.active ? `<span class="pill valid">${icon('check', 'icon-sm')}فعّال</span>` : '<span class="pill expired">موقوف</span>'}</td>
         <td>${esc(fmtDateTime(u.last_login))}</td>
         <td><div class="row-actions">
@@ -50,6 +51,8 @@ const Admin = (() => {
     f.elements.username.disabled = Boolean(u);
     f.elements.full_name.value = u?.full_name || '';
     f.elements.role.value = u?.role || 'hr';
+    $('userBranchField').hidden = !Branch.list.length;
+    $('userBranch').innerHTML = branchOptions(u?.branch_id, 'كل الفروع');
     f.elements.active.checked = u ? u.active : true;
     $('userPwdLabel').innerHTML = u ? 'كلمة مرور جديدة <small class="muted">(اتركيها فارغة للإبقاء على الحالية)</small>' : 'كلمة المرور <b class="req">*</b>';
     $('userModalTitle').textContent = u ? `تعديل المستخدم ${u.username}` : 'مستخدم جديد';
@@ -61,9 +64,11 @@ const Admin = (() => {
     if (!roles) return;
     const p = roles.roles[$('userRole').value]?.permissions || {};
     const write = Object.entries(p).filter(([, v]) => v === 'write').map(([k]) => roles.sections[k]);
-    $('roleHint').textContent = write.length ? `يقدر يضيف ويعدّل في: ${write.join('، ')}` : 'قراءة فقط، بدون أي تعديل';
+    const scope = $('userBranch').value ? ` — ويرى بيانات ${branchName($('userBranch').value)} فقط` : '';
+    $('roleHint').textContent = (write.length ? `يقدر يضيف ويعدّل في: ${write.join('، ')}` : 'قراءة فقط، بدون أي تعديل') + scope;
   }
   $('userRole').addEventListener('change', updateRoleHint);
+  $('userBranch').addEventListener('change', updateRoleHint);
 
   $('userForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -75,6 +80,7 @@ const Admin = (() => {
       role: f.elements.role.value,
       password: f.elements.password.value,
       active: f.elements.active.checked,
+      branch_id: f.elements.branch_id.value,
     };
     try {
       await api(id ? `/api/users/${id}` : '/api/users', { method: id ? 'PUT' : 'POST', body: JSON.stringify(body) });

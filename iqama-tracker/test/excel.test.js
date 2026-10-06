@@ -23,7 +23,7 @@ test('استيراد وتصدير Excel', { skip: !TEST_DB && 'TEST_DATABASE_URL
 
   await migrate();
   await pool.query(`TRUNCATE residencies, users, contracts, driver_cards, cars, car_events, advances,
-    advance_payments, custody, documents, evaluations, audit_log, employee_docs, visas, leaves RESTART IDENTITY CASCADE`);
+    advance_payments, custody, documents, evaluations, audit_log, employee_docs, visas, leaves, branches RESTART IDENTITY CASCADE`);
   await pool.query("INSERT INTO users (username, password_hash, role) VALUES ('admin', $1, 'admin'), ('viewer', $1, 'viewer')",
     [hashPassword('secret123')]);
 

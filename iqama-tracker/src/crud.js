@@ -45,6 +45,7 @@ function validateFields(fields, body) {
         if (v !== null && !(Number.isInteger(v) && v >= 1 && v <= 5)) errors.push(`${f.label}: التقييم من 1 إلى 5`);
         break;
       case 'employee':
+      case 'branch':
         v = s || null;
         if (v && !/^\d{1,18}$/.test(v)) errors.push(`${f.label}: اختيار غير صحيح`);
         break;
@@ -64,7 +65,7 @@ function validateFields(fields, body) {
 function dbError(err, res) {
   if (err.code === '23505') return res.status(409).json({ error: 'القيمة مسجلة من قبل (مكررة)' });
   if (err.code === '23503' || err.code === '23001') {
-    return res.status(409).json({ error: 'لا يمكن الحذف أو الحفظ لوجود بيانات مرتبطة (مثل سلف أو عهد على الموظف)' });
+    return res.status(409).json({ error: 'لا يمكن الحذف أو الحفظ لوجود بيانات مرتبطة (مثل موظفين أو سلف أو عهد)' });
   }
   if (err.code === '23514') return res.status(400).json({ error: 'قيمة غير مسموح بها' });
   throw err;
@@ -74,10 +75,11 @@ const parseId = (v) => (/^\d{1,18}$/.test(String(v)) ? String(v) : null);
 
 // ---------- بناء الاستعلامات ----------
 
-async function context() {
+// الفرع الحالي يأتي من req.branch (يحدده server.js)؛ بدون req = كل الفروع
+async function context(req) {
   const alertDays = await getAlertDays();
   const t = today();
-  return { today: t, alertEnd: addDays(t, alertDays), alertDays };
+  return { today: t, alertEnd: addDays(t, alertDays), alertDays, branch: req?.branch || null };
 }
 
 function inner(m, base, { q, id } = {}) {
@@ -85,6 +87,7 @@ function inner(m, base, { q, id } = {}) {
   const ctx = { ...base, p };
   const where = [];
   if (id) where.push(`t.id = ${p.add(id)}`);
+  if (base.branch) where.push(`${m.branch} = ${p.add(base.branch)}`);
   if (q) {
     const like = p.add(`%${q.replace(/[\\%_]/g, '\\$&')}%`);
     where.push(`(${m.search.map((c) => `${c} ILIKE ${like}`).join(' OR ')})`);
@@ -94,8 +97,8 @@ function inner(m, base, { q, id } = {}) {
   return { sql, p, where };
 }
 
-async function getOne(m, id) {
-  const { sql, p } = inner(m, await context(), { id });
+async function getOne(m, id, req) {
+  const { sql, p } = inner(m, await context(req), { id });
   const { rows } = await pool.query(sql, p.values);
   return rows[0] || null;
 }
@@ -109,11 +112,31 @@ async function counts(m, base, q) {
   return out;
 }
 
-async function totals(m) {
+async function totals(m, base) {
   if (!m.totals) return null;
   const exprs = Object.entries(m.totals).map(([k, e]) => `COALESCE(${e}, 0) AS "${k}"`).join(', ');
-  const { rows } = await pool.query(`SELECT ${exprs} FROM ${m.from}`);
+  const scoped = base?.branch;
+  const { rows } = await pool.query(`SELECT ${exprs} FROM ${m.from}${scoped ? ` WHERE ${m.branch} = $1` : ''}`, scoped ? [scoped] : []);
   return rows[0];
+}
+
+// قواعد الفرع عند الحفظ: المستخدم المربوط بفرع يحفظ في فرعه دائمًا،
+// والسجل الجديد بدون فرع يأخذ الفرع المختار حاليًا
+function applyBranch(m, values, req, isNew) {
+  if (!m.fields.some((f) => f.type === 'branch')) return;
+  if (req.branchLocked) values.branch_id = req.branch;
+  else if (isNew && !values.branch_id && req.branch) values.branch_id = req.branch;
+}
+
+// الموظفون المختارون لازم يكونوا من نفس الفرع الحالي
+async function employeesOutsideBranch(m, values, req) {
+  if (!req.branch) return [];
+  const fields = m.fields.filter((f) => f.type === 'employee' && values[f.name]);
+  if (!fields.length) return [];
+  const { rows } = await pool.query('SELECT id FROM residencies WHERE id = ANY($1::bigint[]) AND branch_id = $2',
+    [fields.map((f) => values[f.name]), req.branch]);
+  const ok = new Set(rows.map((x) => String(x.id)));
+  return fields.filter((f) => !ok.has(String(values[f.name]))).map((f) => `${f.label}: الموظف غير موجود في هذا الفرع`);
 }
 
 // ---------- المستندات ----------
@@ -133,11 +156,15 @@ const ALLOWED = {
 };
 const DOC_ENTITIES = { ...Object.fromEntries(Object.entries(MODULES).map(([k, m]) => [k, m.table])), residencies: 'residencies' };
 
-async function entityExists(type, id) {
-  const table = DOC_ENTITIES[type];
-  if (!table || !parseId(id)) return false;
-  const { rowCount } = await pool.query(`SELECT 1 FROM ${table} WHERE id = $1`, [id]);
-  return rowCount > 0;
+// السجل موجود وضمن فرع المستخدم
+async function entityVisible(type, id, req) {
+  if (!DOC_ENTITIES[type] || !parseId(id)) return false;
+  if (type === 'residencies') {
+    const { rowCount } = await pool.query(
+      'SELECT 1 FROM residencies WHERE id = $1 AND ($2::bigint IS NULL OR branch_id = $2::bigint)', [id, req.branch || null]);
+    return rowCount > 0;
+  }
+  return Boolean(await getOne(MODULES[type], id, req));
 }
 
 async function deleteDocuments(type, id) {
@@ -153,6 +180,7 @@ const docColumns = 'id, entity_type, entity_id, title, original_name, mime_type,
 router.get('/documents', async (req, res) => {
   const { entity, id } = req.query;
   if (!DOC_ENTITIES[entity] || !parseId(id)) return res.status(400).json({ error: 'طلب غير صحيح' });
+  if (!(await entityVisible(entity, id, req))) return res.status(404).json({ error: 'السجل غير موجود' });
   const { rows } = await pool.query(
     `SELECT ${docColumns} FROM documents WHERE entity_type = $1 AND entity_id = $2 ORDER BY created_at DESC`,
     [entity, id],
@@ -165,7 +193,7 @@ router.post(
   express.raw({ type: () => true, limit: `${MAX_UPLOAD_MB}mb` }),
   async (req, res) => {
     const { entity, id } = req.query;
-    if (!(await entityExists(entity, id))) return res.status(404).json({ error: 'السجل غير موجود' });
+    if (!(await entityVisible(entity, id, req))) return res.status(404).json({ error: 'السجل غير موجود' });
 
     let name = '';
     try { name = decodeURIComponent(req.get('X-File-Name') || ''); } catch { /* اسم غير صالح */ }
@@ -193,12 +221,13 @@ router.post(
 router.get('/documents/:id/file', async (req, res) => {
   if (!parseId(req.params.id)) return res.status(404).end();
   const { rows } = await pool.query(
-    'SELECT original_name, stored_name, mime_type, entity_type FROM documents WHERE id = $1',
+    'SELECT original_name, stored_name, mime_type, entity_type, entity_id FROM documents WHERE id = $1',
     [req.params.id],
   );
   if (!rows.length) return res.status(404).json({ error: 'المستند غير موجود' });
   const doc = rows[0];
   if (!can(req.user, doc.entity_type, 'read')) return res.status(403).json({ error: 'ليس لديك صلاحية' });
+  if (!(await entityVisible(doc.entity_type, doc.entity_id, req))) return res.status(404).json({ error: 'المستند غير موجود' });
   const inline = req.query.inline === '1' && /^(application\/pdf|image\/)/.test(doc.mime_type);
   res.setHeader('Content-Type', doc.mime_type);
   res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; plugin-types application/pdf");
@@ -216,6 +245,7 @@ router.delete('/documents/:id', async (req, res) => {
   const { rows: [doc] } = await pool.query('SELECT entity_type, entity_id, title FROM documents WHERE id = $1', [req.params.id]);
   if (!doc) return res.status(404).json({ error: 'المستند غير موجود' });
   if (!can(req.user, doc.entity_type, 'write')) return res.status(403).json({ error: 'ليس لديك صلاحية' });
+  if (!(await entityVisible(doc.entity_type, doc.entity_id, req))) return res.status(404).json({ error: 'المستند غير موجود' });
   const { rows } = await pool.query('DELETE FROM documents WHERE id = $1 RETURNING stored_name', [req.params.id]);
   fs.promises.unlink(path.join(UPLOAD_DIR, rows[0].stored_name)).catch(() => {});
   audit.log(req, 'delete', doc.entity_type, doc.entity_id, `مستند: ${doc.title}`);
@@ -229,9 +259,9 @@ router.get('/employees', async (req, res) => {
   const like = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
   const { rows } = await pool.query(
     `SELECT id, name, iqama_number FROM residencies
-     WHERE $1 = '' OR name ILIKE $2 OR iqama_number LIKE $2
+     WHERE ($1 = '' OR name ILIKE $2 OR iqama_number LIKE $2) AND ($3::bigint IS NULL OR branch_id = $3::bigint)
      ORDER BY name LIMIT 15`,
-    [q, like],
+    [q, like, req.branch || null],
   );
   res.json(rows.map((r) => ({ id: String(r.id), name: r.name, iqamaNumber: r.iqama_number })));
 });
@@ -239,7 +269,7 @@ router.get('/employees', async (req, res) => {
 router.get('/employees/:id/summary', async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return res.status(404).end();
-  const base = await context();
+  const base = await context(req);
   const section = async (key, cond) => {
     const m = MODULES[key];
     const { sql, p } = inner(m, base);
@@ -264,11 +294,12 @@ router.get('/employees/:id/summary', async (req, res) => {
          SELECT sum(end_date - start_date + 1) FROM leaves
          WHERE employee_id = e.id AND leave_type = 'سنوية' AND approval = 'معتمدة'
            AND extract(year FROM start_date) = extract(year FROM $2::date)), 0))::int AS leave_balance
-       FROM residencies e WHERE e.id = $1`,
-      [id, base.today],
+       FROM residencies e WHERE e.id = $1 AND ($3::bigint IS NULL OR e.branch_id = $3::bigint)`,
+      [id, base.today, base.branch],
     ),
   ]);
-  res.json({
+  if (!emp.rows.length) return res.status(404).json({ error: 'الموظف غير موجود' });
+  return res.json({
     driverCards, advances, custody, cars, evaluations, employeeDocs, visas, leaves,
     documents: docs.rows[0].n,
     leaveEntitlement: emp.rows[0]?.annual_leave_days ?? 21,
@@ -279,15 +310,24 @@ router.get('/employees/:id/summary', async (req, res) => {
 // ---------- نظرة عامة للوحة المتابعة ----------
 
 router.get('/overview', async (req, res) => {
-  const base = await context();
+  const base = await context(req);
   const out = {};
   await Promise.all(Object.entries(MODULES).map(async ([key, m]) => {
-    out[key] = { counts: await counts(m, base), totals: await totals(m) };
+    out[key] = { counts: await counts(m, base), totals: await totals(m, base) };
   }));
   res.json(out);
 });
 
 router.get('/schema', (req, res) => res.json(publicSchema()));
+
+// قائمة الفروع لاختيار الفرع في الواجهة (المستخدم المربوط بفرع يرى فرعه فقط)
+router.get('/branches', async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT id, name, city FROM branches WHERE ($1::bigint IS NULL OR id = $1::bigint) ORDER BY name',
+    [req.branchLocked ? req.branch : null],
+  );
+  res.json(rows.map((b) => ({ id: String(b.id), name: b.name, city: b.city })));
+});
 
 // ---------- Excel: تصدير، نموذج، استيراد ----------
 
@@ -316,8 +356,14 @@ function computedColumns(m) {
 
 const asNumber = (v) => (v == null || v === '' ? '' : Number(v));
 
-async function exportModule(m, query) {
-  const base = await context();
+async function branchNames() {
+  const { rows } = await pool.query('SELECT id, name FROM branches');
+  return new Map(rows.map((b) => [String(b.id), b.name]));
+}
+
+async function exportModule(m, req) {
+  const query = req.query;
+  const base = await context(req);
   const { sql, p } = inner(m, base, { q: str(query.q) });
   const status = m.statuses[query.status] ? p.add(query.status) : null;
   const { rows } = await pool.query(
@@ -331,6 +377,7 @@ async function exportModule(m, query) {
     const res = await pool.query('SELECT id, name, iqama_number FROM residencies WHERE id = ANY($1::bigint[])', [ids]);
     for (const e of res.rows) emps.set(String(e.id), e);
   }
+  const branches = await branchNames();
   const header = [];
   for (const f of m.fields) {
     if (f.type === 'employee') header.push(f.label, `${f.label}${IQAMA_SUFFIX}`);
@@ -345,7 +392,8 @@ async function exportModule(m, query) {
       if (f.type === 'employee') {
         const e = emps.get(String(v));
         out.push(e?.name ?? '', e?.iqama_number ?? '');
-      } else if (['money', 'int', 'rating'].includes(f.type)) out.push(asNumber(v));
+      } else if (f.type === 'branch') out.push(branches.get(String(v)) ?? '');
+      else if (['money', 'int', 'rating'].includes(f.type)) out.push(asNumber(v));
       else out.push(v ?? '');
     }
     for (const c of computed) out.push(['money', 'number', 'days', 'progress', 'stars'].includes(c.type) ? asNumber(r[c.key]) : r[c.key] ?? '');
@@ -364,6 +412,7 @@ function templateSheets(m) {
       case 'int': return 'رقم صحيح';
       case 'rating': return 'رقم من 1 إلى 5';
       case 'employee': return 'رقم إقامة الموظف (لازم يكون مسجّل في الإقامات)';
+      case 'branch': return 'اسم الفرع كما هو مسجّل في الفروع (فارغ = الفرع المختار حاليًا)';
       case 'select': return `واحدة من: ${f.options.join('، ')}${f.default ? ` (الافتراضي: ${f.default})` : ''}`;
       default: return 'نص';
     }
@@ -380,7 +429,8 @@ function templateSheets(m) {
 
 const normHeader = (h) => String(h ?? '').trim().replace(/\s+/g, ' ').replace(/\s*\*$/, '').toLowerCase();
 
-async function importModule(m, buf) {
+async function importModule(m, req) {
+  const buf = req.body;
   let rows;
   try {
     rows = readTable(buf);
@@ -408,9 +458,14 @@ async function importModule(m, buf) {
   iqamas.delete('');
   const byIqama = new Map();
   if (iqamas.size) {
-    const res = await pool.query('SELECT id, iqama_number FROM residencies WHERE iqama_number = ANY($1::text[])', [[...iqamas]]);
+    const res = await pool.query(
+      `SELECT id, iqama_number FROM residencies
+       WHERE iqama_number = ANY($1::text[]) AND ($2::bigint IS NULL OR branch_id = $2::bigint)`,
+      [[...iqamas], req.branch || null],
+    );
     for (const e of res.rows) byIqama.set(e.iqama_number, String(e.id));
   }
+  const branchByName = new Map([...(await branchNames())].map(([id, name]) => [normHeader(name), id]));
 
   const errors = [];
   const valid = [];
@@ -427,7 +482,11 @@ async function importModule(m, buf) {
       else if (f.type === 'employee') {
         const iq = toLatinDigits(v);
         v = iq ? byIqama.get(iq) : '';
-        if (iq && !v) rowErrors.push(`${f.label}: لا يوجد موظف برقم الإقامة ${iq}`);
+        if (iq && !v) rowErrors.push(`${f.label}: لا يوجد موظف برقم الإقامة ${iq}${req.branch ? ' في هذا الفرع' : ''}`);
+      } else if (f.type === 'branch') {
+        const name = str(v);
+        v = name ? branchByName.get(normHeader(name)) : '';
+        if (name && !v) rowErrors.push(`${f.label}: لا يوجد فرع باسم ${name}`);
       } else if (['money', 'int', 'rating'].includes(f.type)) v = toLatinDigits(v);
       body[f.name] = v;
     }
@@ -435,7 +494,10 @@ async function importModule(m, buf) {
     if (!e.length && m.validate) e.push(...m.validate(values));
     rowErrors.push(...e.filter((x) => !rowErrors.some((y) => x.startsWith(y.split(':')[0]))));
     if (rowErrors.length) errors.push({ line, error: rowErrors.join('، ') });
-    else valid.push({ line, values });
+    else {
+      applyBranch(m, values, req, true);
+      valid.push({ line, values });
+    }
   });
 
   let inserted = 0;
@@ -475,7 +537,7 @@ for (const [key, m] of Object.entries(MODULES)) {
   const sorts = { default: m.sort, newest: 'created_at DESC, id DESC' };
 
   router.get(`/m/${key}`, async (req, res) => {
-    const base = await context();
+    const base = await context(req);
     const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
     const pageSize = Math.min(200, Math.max(1, Number.parseInt(req.query.pageSize, 10) || 25));
     const q = str(req.query.q);
@@ -496,13 +558,13 @@ for (const [key, m] of Object.entries(MODULES)) {
       pageSize,
       total: status ? c[req.query.status] : c.total,
       counts: c,
-      totals: await totals(m),
+      totals: await totals(m, base),
       items: list.rows,
     });
   });
 
   router.get(`/m/${key}/export.xlsx`, async (req, res) => {
-    const { header, rows } = await exportModule(m, req.query);
+    const { header, rows } = await exportModule(m, req);
     sendXlsx(res, `${key}-${today()}`, `${m.label}-${today()}`, [{ name: m.label, header, rows }]);
   });
 
@@ -511,7 +573,7 @@ for (const [key, m] of Object.entries(MODULES)) {
   });
 
   router.post(`/m/${key}/import`, express.raw({ type: '*/*', limit: '30mb' }), async (req, res) => {
-    const result = await importModule(m, req.body);
+    const result = await importModule(m, req);
     if (result.error) return res.status(400).json({ error: result.error });
     audit.log(req, 'import', key, '', `استيراد ${m.label}: إضافة ${result.inserted}، أخطاء ${result.failed}`);
     return res.json(result);
@@ -519,7 +581,7 @@ for (const [key, m] of Object.entries(MODULES)) {
 
   router.get(`/m/${key}/:id`, async (req, res) => {
     const id = parseId(req.params.id);
-    const row = id && await getOne(m, id);
+    const row = id && await getOne(m, id, req);
     if (!row) return res.status(404).json({ error: `${m.singular} غير موجود` });
     return res.json(row);
   });
@@ -527,6 +589,8 @@ for (const [key, m] of Object.entries(MODULES)) {
   router.post(`/m/${key}`, async (req, res) => {
     const { errors, values } = validateFields(m.fields, req.body || {});
     if (!errors.length && m.validate) errors.push(...m.validate(values));
+    applyBranch(m, values, req, true);
+    if (!errors.length) errors.push(...await employeesOutsideBranch(m, values, req));
     if (errors.length) return res.status(400).json({ error: errors.join('، ') });
     const cols = Object.keys(values);
     try {
@@ -545,8 +609,11 @@ for (const [key, m] of Object.entries(MODULES)) {
   router.put(`/m/${key}/:id`, async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) return res.status(404).end();
+    if (!(await getOne(m, id, req))) return res.status(404).json({ error: `${m.singular} غير موجود` });
     const { errors, values } = validateFields(m.fields, req.body || {});
     if (!errors.length && m.validate) errors.push(...m.validate(values));
+    applyBranch(m, values, req, false);
+    if (!errors.length) errors.push(...await employeesOutsideBranch(m, values, req));
     if (errors.length) return res.status(400).json({ error: errors.join('، ') });
     const cols = Object.keys(values);
     const client = await pool.connect();
@@ -578,7 +645,7 @@ for (const [key, m] of Object.entries(MODULES)) {
   router.delete(`/m/${key}/:id`, async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) return res.status(404).end();
-    const existing = await getOne(m, id);
+    const existing = await getOne(m, id, req);
     if (!existing) return res.status(404).json({ error: `${m.singular} غير موجود` });
     try {
       await pool.query(`DELETE FROM ${m.table} WHERE id = $1`, [id]);
@@ -594,14 +661,14 @@ for (const [key, m] of Object.entries(MODULES)) {
   for (const [childKey, c] of Object.entries(m.children || {})) {
     router.get(`/m/${key}/:id/${childKey}`, async (req, res) => {
       const id = parseId(req.params.id);
-      if (!id) return res.status(404).end();
+      if (!id || !(await getOne(m, id, req))) return res.status(404).end();
       const { rows } = await pool.query(`SELECT * FROM ${c.table} WHERE ${c.fk} = $1 ORDER BY ${c.order}`, [id]);
       return res.json(rows);
     });
 
     router.post(`/m/${key}/:id/${childKey}`, async (req, res) => {
       const id = parseId(req.params.id);
-      const parent = id && await getOne(m, id);
+      const parent = id && await getOne(m, id, req);
       if (!parent) return res.status(404).json({ error: `${m.singular} غير موجود` });
       const { errors, values } = validateFields(c.fields, req.body || {});
       if (errors.length) return res.status(400).json({ error: errors.join('، ') });
@@ -624,7 +691,7 @@ for (const [key, m] of Object.entries(MODULES)) {
     router.delete(`/m/${key}/:id/${childKey}/:childId`, async (req, res) => {
       const id = parseId(req.params.id);
       const childId = parseId(req.params.childId);
-      if (!id || !childId) return res.status(404).end();
+      if (!id || !childId || !(await getOne(m, id, req))) return res.status(404).end();
       const { rowCount } = await pool.query(`DELETE FROM ${c.table} WHERE id = $1 AND ${c.fk} = $2`, [childId, id]);
       if (!rowCount) return res.status(404).json({ error: 'السجل غير موجود' });
       audit.log(req, 'delete', key, id, `${c.label}: سجل رقم ${childId}`);
@@ -640,6 +707,10 @@ async function logChanges(client, m, id, before, after, user) {
     if (v == null || v === '') return '—';
     if (labels[field].type === 'employee') {
       const r = await client.query('SELECT name FROM residencies WHERE id = $1', [v]);
+      return r.rows[0]?.name || '—';
+    }
+    if (labels[field].type === 'branch') {
+      const r = await client.query('SELECT name FROM branches WHERE id = $1', [v]);
       return r.rows[0]?.name || '—';
     }
     if (labels[field].type === 'date' && v instanceof Date) return v.toISOString().slice(0, 10);

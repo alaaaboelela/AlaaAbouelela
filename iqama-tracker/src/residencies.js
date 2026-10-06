@@ -26,7 +26,11 @@ function params() {
 }
 
 const columns = (todayParam) => `id, name, iqama_number, expiry_date, nationality, phone, employer, notes, annual_leave_days,
+  branch_id, (SELECT b.name FROM branches b WHERE b.id = residencies.branch_id) AS branch_name,
   created_at, updated_at, (expiry_date - ${todayParam}::date) AS days_left`;
+
+// شرط الفرع الحالي (فارغ = كل الفروع)
+const branchCond = (req, p) => (req.branch ? `branch_id = ${p.add(req.branch)}` : null);
 
 const SORTS = {
   expiry: 'expiry_date ASC, id ASC',
@@ -53,6 +57,8 @@ function toApi(row, alertDays) {
     employer: row.employer,
     notes: row.notes,
     annualLeaveDays: row.annual_leave_days,
+    branchId: row.branch_id == null ? null : String(row.branch_id),
+    branchName: row.branch_name || null,
     daysLeft: row.days_left,
     status: statusOf(row.days_left, alertDays),
     createdAt: row.created_at,
@@ -108,6 +114,7 @@ function validate(body) {
       employer: str(body.employer).slice(0, 200),
       notes: str(body.notes).slice(0, 2000),
       annualLeaveDays,
+      branchId: /^\d{1,18}$/.test(str(body.branchId)) ? str(body.branchId) : null,
     },
   };
 }
@@ -117,13 +124,20 @@ function duplicateError(err, res) {
     res.status(409).json({ error: 'رقم الإقامة مسجل من قبل' });
     return true;
   }
+  if (err.code === '23503') {
+    res.status(400).json({ error: 'الفرع المختار غير موجود' });
+    return true;
+  }
   return false;
 }
 
 // ---------- القائمة مع الصفحات والبحث والفلترة ----------
 
-function buildWhere(query, p, alertDays) {
+function buildWhere(req, p, alertDays) {
+  const query = req.query;
   const where = [];
+  const branch = branchCond(req, p);
+  if (branch) where.push(branch);
   const status = statusCondition(query.status, p, alertDays);
   if (status) where.push(status);
   const q = str(query.q);
@@ -141,9 +155,9 @@ router.get('/residencies', async (req, res) => {
   const order = SORTS[req.query.sort] || SORTS.expiry;
 
   const countP = params();
-  const countWhere = buildWhere(req.query, countP, alertDays);
+  const countWhere = buildWhere(req, countP, alertDays);
   const listP = params();
-  const listWhere = buildWhere(req.query, listP, alertDays);
+  const listWhere = buildWhere(req, listP, alertDays);
   const todayParam = listP.add(today());
 
   const [list, count] = await Promise.all([
@@ -170,13 +184,14 @@ router.get('/stats', async (req, res) => {
   const expiring = statusCondition('expiring', p, alertDays);
   const valid = statusCondition('valid', p, alertDays);
   const weekEnd = p.add(addDays(today(), 7));
+  const branch = branchCond(req, p);
   const { rows } = await pool.query(
     `SELECT count(*)::int AS total,
        count(*) FILTER (WHERE ${expired})::int AS expired,
        count(*) FILTER (WHERE ${expiring})::int AS expiring,
        count(*) FILTER (WHERE ${valid})::int AS valid,
        count(*) FILTER (WHERE ${expiring} AND expiry_date <= ${weekEnd}::date)::int AS "withinWeek"
-     FROM residencies`,
+     FROM residencies ${branch ? `WHERE ${branch}` : ''}`,
     p.values,
   );
   res.json({ alertDays, ...rows[0] });
@@ -197,8 +212,9 @@ router.get('/stats/monthly', async (req, res) => {
   const { rows } = await pool.query(
     `SELECT to_char(expiry_date, 'YYYY-MM') AS month, count(*)::int AS count
      FROM residencies WHERE expiry_date >= $1::date AND expiry_date < $2::date
+       AND ($3::bigint IS NULL OR branch_id = $3::bigint)
      GROUP BY 1`,
-    [monthStart, end.toISOString().slice(0, 10)],
+    [monthStart, end.toISOString().slice(0, 10), req.branch || null],
   );
   const counts = Object.fromEntries(rows.map((r) => [r.month, r.count]));
   res.json(months.map((month) => ({ month, count: counts[month] || 0 })));
@@ -207,14 +223,14 @@ router.get('/stats/monthly', async (req, res) => {
 // ---------- تصدير / استيراد ----------
 
 const EXPORT_HEADER = ['الاسم', 'رقم الإقامة', 'تاريخ الانتهاء', 'تاريخ الانتهاء هجري', 'الجنسية', 'الجوال', 'جهة العمل',
-  'رصيد الإجازة السنوية', 'ملاحظات', 'الأيام المتبقية', 'الحالة'];
+  'الفرع', 'رصيد الإجازة السنوية', 'ملاحظات', 'الأيام المتبقية', 'الحالة'];
 const STATUS_LABELS = { expired: 'منتهية', expiring: 'قريبة من الانتهاء', valid: 'سارية' };
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-async function exportRows(query) {
+async function exportRows(req) {
   const alertDays = await getAlertDays();
   const p = params();
-  const where = buildWhere(query, p, alertDays);
+  const where = buildWhere(req, p, alertDays);
   const todayParam = p.add(today());
   const { rows } = await pool.query(
     `SELECT ${columns(todayParam)} FROM residencies ${where} ORDER BY ${SORTS.expiry}`,
@@ -222,18 +238,18 @@ async function exportRows(query) {
   );
   return rows.map((r) => [
     r.name, r.iqama_number, r.expiry_date, gregorianToHijri(r.expiry_date),
-    r.nationality, r.phone, r.employer, r.annual_leave_days, r.notes, r.days_left, STATUS_LABELS[statusOf(r.days_left, alertDays)],
+    r.nationality, r.phone, r.employer, r.branch_name || '', r.annual_leave_days, r.notes, r.days_left, STATUS_LABELS[statusOf(r.days_left, alertDays)],
   ]);
 }
 
 router.get('/residencies/export.csv', async (req, res) => {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="residencies.csv"');
-  res.send(toCsv(EXPORT_HEADER, await exportRows(req.query)));
+  res.send(toCsv(EXPORT_HEADER, await exportRows(req)));
 });
 
 router.get('/residencies/export.xlsx', async (req, res) => {
-  const rows = await exportRows(req.query);
+  const rows = await exportRows(req);
   res.setHeader('Content-Type', XLSX_TYPE);
   res.setHeader('Content-Disposition', `attachment; filename="residencies-${today()}.xlsx"; filename*=UTF-8''${encodeURIComponent(`الإقامات-${today()}.xlsx`)}`);
   res.send(writeXlsx([{ name: 'الإقامات', header: EXPORT_HEADER, rows }]));
@@ -243,7 +259,7 @@ router.get('/residencies/template.xlsx', (req, res) => {
   res.setHeader('Content-Type', XLSX_TYPE);
   res.setHeader('Content-Disposition', `attachment; filename="residencies-template.xlsx"; filename*=UTF-8''${encodeURIComponent('نموذج-استيراد-الإقامات.xlsx')}`);
   res.send(writeXlsx([
-    { name: 'الإقامات', header: ['الاسم', 'رقم الإقامة', 'تاريخ الانتهاء', 'الجنسية', 'الجوال', 'جهة العمل', 'رصيد الإجازة السنوية', 'ملاحظات'], rows: [] },
+    { name: 'الإقامات', header: ['الاسم', 'رقم الإقامة', 'تاريخ الانتهاء', 'الجنسية', 'الجوال', 'جهة العمل', 'الفرع', 'رصيد الإجازة السنوية', 'ملاحظات'], rows: [] },
     {
       name: 'تعليمات',
       header: ['العمود', 'مطلوب', 'ملاحظات'],
@@ -252,6 +268,7 @@ router.get('/residencies/template.xlsx', (req, res) => {
         ['رقم الإقامة', 'نعم', '10 أرقام تبدأ بـ 2. لو الرقم موجود يتم تحديث بياناته بدل التكرار'],
         ['تاريخ الانتهاء', 'نعم', 'ميلادي (2026-12-31 أو 31/12/2026) أو هجري (1448-06-15)'],
         ['الجنسية', 'لا', ''], ['الجوال', 'لا', ''], ['جهة العمل', 'لا', ''],
+        ['الفرع', 'لا', 'اسم الفرع كما هو مسجّل في الفروع (فارغ = الفرع المختار حاليًا)'],
         ['رصيد الإجازة السنوية', 'لا', 'عدد الأيام في السنة، الافتراضي 21'],
         ['ملاحظات', 'لا', ''],
       ],
@@ -270,6 +287,7 @@ const IMPORT_COLUMNS = {
   employer: ['employer', 'جهة العمل', 'الكفيل'],
   notes: ['notes', 'ملاحظات'],
   annualLeaveDays: ['annual_leave_days', 'رصيد الإجازة السنوية', 'رصيد الإجازة'],
+  branch: ['branch', 'الفرع', 'المنشأة'],
 };
 
 router.post('/residencies/import', express.raw({ type: '*/*', limit: '30mb' }), async (req, res) => {
@@ -290,6 +308,10 @@ router.post('/residencies/import', express.raw({ type: '*/*', limit: '30mb' }), 
     return res.status(400).json({ error: 'الملف يجب أن يحتوي أعمدة: الاسم، رقم الإقامة، تاريخ الانتهاء (ميلادي أو هجري)' });
   }
 
+  const { rows: branchRows } = await pool.query('SELECT id, name FROM branches');
+  const branchByName = new Map(branchRows.map((b) => [b.name.trim().toLowerCase(), String(b.id)]));
+  const useFileBranch = index.branch >= 0 && !req.branchLocked;
+
   const errors = [];
   const valid = new Map(); // آخر صف لكل رقم إقامة
   rows.slice(1).forEach((cells, i) => {
@@ -301,8 +323,14 @@ router.post('/residencies/import', express.raw({ type: '*/*', limit: '30mb' }), 
     body.expiryDate = parseDateCell(body.expiryDate);
     if (!str(body.expiryDate)) delete body.expiryDate;
     const { errors: e, value } = validate(body);
+    const branchName = str(body.branch);
+    value.branchId = req.branch;
+    if (useFileBranch && branchName) {
+      value.branchId = branchByName.get(branchName.toLowerCase()) || null;
+      if (!value.branchId) e.push(`لا يوجد فرع باسم ${branchName}`);
+    }
     if (e.length) errors.push({ line: i + 2, error: e.join('، ') });
-    else valid.set(value.iqamaNumber, value);
+    else valid.set(value.iqamaNumber, { ...value, line: i + 2 });
   });
 
   let inserted = 0;
@@ -313,19 +341,28 @@ router.post('/residencies/import', express.raw({ type: '*/*', limit: '30mb' }), 
     const records = [...valid.values()];
     for (let i = 0; i < records.length; i += 1000) {
       const { rows: result } = await client.query(
-        `INSERT INTO residencies (name, iqama_number, expiry_date, nationality, phone, employer, notes, annual_leave_days)
-         SELECT * FROM jsonb_to_recordset($1::jsonb) AS x(
+        `INSERT INTO residencies (name, iqama_number, expiry_date, nationality, phone, employer, notes, annual_leave_days, branch_id)
+         SELECT name, "iqamaNumber", "expiryDate", nationality, phone, employer, notes, "annualLeaveDays", "branchId"
+         FROM jsonb_to_recordset($1::jsonb) AS x(
            name text, "iqamaNumber" text, "expiryDate" date, nationality text, phone text, employer text, notes text,
-           "annualLeaveDays" int)
+           "annualLeaveDays" int, "branchId" bigint)
          ON CONFLICT (iqama_number) DO UPDATE SET
            name = EXCLUDED.name, expiry_date = EXCLUDED.expiry_date, nationality = EXCLUDED.nationality,
            phone = EXCLUDED.phone, employer = EXCLUDED.employer, notes = EXCLUDED.notes,
            annual_leave_days = CASE WHEN $2 THEN EXCLUDED.annual_leave_days ELSE residencies.annual_leave_days END,
+           branch_id = CASE WHEN $3 THEN EXCLUDED.branch_id ELSE residencies.branch_id END,
            updated_at = now()
-         RETURNING (xmax = 0) AS inserted`,
-        [JSON.stringify(records.slice(i, i + 1000)), index.annualLeaveDays >= 0],
+         WHERE $4::bigint IS NULL OR residencies.branch_id = $4::bigint
+         RETURNING iqama_number, (xmax = 0) AS inserted`,
+        [JSON.stringify(records.slice(i, i + 1000)), index.annualLeaveDays >= 0, useFileBranch,
+          req.branchLocked ? req.branch : null],
       );
       for (const r of result) if (r.inserted) inserted++; else updated++;
+      // رقم إقامة مسجل في فرع آخر: المستخدم المربوط بفرع لا يعدّله
+      const done = new Set(result.map((r) => r.iqama_number));
+      for (const rec of records.slice(i, i + 1000)) {
+        if (!done.has(rec.iqamaNumber)) errors.push({ line: rec.line, error: `رقم الإقامة ${rec.iqamaNumber} مسجل في فرع آخر` });
+      }
     }
     await client.query('COMMIT');
   } catch (err) {
@@ -335,6 +372,7 @@ router.post('/residencies/import', express.raw({ type: '*/*', limit: '30mb' }), 
     client.release();
   }
 
+  errors.sort((a, b) => a.line - b.line);
   audit.log(req, 'import', 'residencies', '', `استيراد إقامات: إضافة ${inserted}، تحديث ${updated}، أخطاء ${errors.length}`);
   res.json({ inserted, updated, failed: errors.length, errors: errors.slice(0, 200) });
 });
@@ -346,10 +384,11 @@ router.post('/residencies', async (req, res) => {
   if (errors.length) return res.status(400).json({ error: errors.join('، ') });
   try {
     const { rows } = await pool.query(
-      `INSERT INTO residencies (name, iqama_number, expiry_date, nationality, phone, employer, notes, annual_leave_days)
-       VALUES ($2, $3, $4, $5, $6, $7, $8, $9) RETURNING ${columns('$1')}`,
+      `INSERT INTO residencies (name, iqama_number, expiry_date, nationality, phone, employer, notes, annual_leave_days, branch_id)
+       VALUES ($2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING ${columns('$1')}`,
       [today(), value.name, value.iqamaNumber, value.expiryDate,
-        value.nationality, value.phone, value.employer, value.notes, value.annualLeaveDays],
+        value.nationality, value.phone, value.employer, value.notes, value.annualLeaveDays,
+        req.branchLocked ? req.branch : value.branchId || req.branch],
     );
     audit.log(req, 'create', 'residencies', rows[0].id, `إقامة: ${value.name} (${value.iqamaNumber})`);
     return res.status(201).json(toApi(rows[0], await getAlertDays()));
@@ -370,7 +409,10 @@ function parseId(req, res) {
 router.get('/residencies/:id', async (req, res) => {
   const id = parseId(req, res);
   if (!id) return;
-  const { rows } = await pool.query(`SELECT ${columns('$1')} FROM residencies WHERE id = $2`, [today(), id]);
+  const { rows } = await pool.query(
+    `SELECT ${columns('$1')} FROM residencies WHERE id = $2 AND ($3::bigint IS NULL OR branch_id = $3::bigint)`,
+    [today(), id, req.branch || null],
+  );
   if (!rows.length) return res.status(404).json({ error: 'الإقامة غير موجودة' });
   res.json(toApi(rows[0], await getAlertDays()));
 });
@@ -380,20 +422,24 @@ router.put('/residencies/:id', async (req, res) => {
   if (!id) return undefined;
   const { errors, value } = validate(req.body || {});
   if (errors.length) return res.status(400).json({ error: errors.join('، ') });
-  const { rows: [before] } = await pool.query('SELECT * FROM residencies WHERE id = $1', [id]);
+  const { rows: [before] } = await pool.query(
+    'SELECT * FROM residencies WHERE id = $1 AND ($2::bigint IS NULL OR branch_id = $2::bigint)', [id, req.branch || null]);
+  if (!before) return res.status(404).json({ error: 'الإقامة غير موجودة' });
+  const branchId = req.branchLocked ? req.branch : value.branchId;
   try {
     const { rows } = await pool.query(
       `UPDATE residencies SET name = $3, iqama_number = $4, expiry_date = $5, nationality = $6,
-         phone = $7, employer = $8, notes = $9, annual_leave_days = $10, updated_at = now()
+         phone = $7, employer = $8, notes = $9, annual_leave_days = $10, branch_id = $11, updated_at = now()
        WHERE id = $2 RETURNING ${columns('$1')}`,
       [today(), id, value.name, value.iqamaNumber, value.expiryDate,
-        value.nationality, value.phone, value.employer, value.notes, value.annualLeaveDays],
+        value.nationality, value.phone, value.employer, value.notes, value.annualLeaveDays, branchId],
     );
     if (!rows.length) return res.status(404).json({ error: 'الإقامة غير موجودة' });
     audit.log(req, 'update', 'residencies', id, `إقامة: ${value.name} (${value.iqamaNumber})`, audit.diff(before, {
       name: value.name, iqama_number: value.iqamaNumber, expiry_date: value.expiryDate, nationality: value.nationality,
       phone: value.phone, employer: value.employer, notes: value.notes, annual_leave_days: value.annualLeaveDays,
-    }, { name: 'الاسم', iqama_number: 'رقم الإقامة', expiry_date: 'تاريخ الانتهاء', nationality: 'الجنسية', phone: 'الجوال', employer: 'جهة العمل', notes: 'ملاحظات', annual_leave_days: 'رصيد الإجازة' }));
+      branch_id: branchId,
+    }, { name: 'الاسم', iqama_number: 'رقم الإقامة', expiry_date: 'تاريخ الانتهاء', nationality: 'الجنسية', phone: 'الجوال', employer: 'جهة العمل', notes: 'ملاحظات', annual_leave_days: 'رصيد الإجازة', branch_id: 'الفرع' }));
     return res.json(toApi(rows[0], await getAlertDays()));
   } catch (err) {
     if (duplicateError(err, res)) return undefined;
@@ -405,7 +451,10 @@ router.delete('/residencies/:id', async (req, res) => {
   const id = parseId(req, res);
   if (!id) return;
   let rowCount;
-  const { rows: [existing] } = await pool.query('SELECT name, iqama_number FROM residencies WHERE id = $1', [id]);
+  const { rows: [existing] } = await pool.query(
+    'SELECT name, iqama_number FROM residencies WHERE id = $1 AND ($2::bigint IS NULL OR branch_id = $2::bigint)',
+    [id, req.branch || null]);
+  if (!existing) return res.status(404).json({ error: 'الإقامة غير موجودة' });
   try {
     ({ rowCount } = await pool.query('DELETE FROM residencies WHERE id = $1', [id]));
   } catch (err) {

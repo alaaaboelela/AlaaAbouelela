@@ -20,15 +20,16 @@ function validateUser(body, { isNew }) {
   const role = str(body.role);
   const password = String(body.password || '');
   const active = body.active === undefined ? true : body.active === true || body.active === 'true';
+  const branchId = /^\d{1,18}$/.test(str(body.branch_id)) ? str(body.branch_id) : null;
   if (isNew && !/^[a-z0-9._-]{3,30}$/.test(username)) {
     errors.push('اسم المستخدم من 3 إلى 30 حرفًا إنجليزيًا أو أرقام (بدون مسافات)');
   }
   if (!ROLES[role]) errors.push('اختر الدور');
   if ((isNew || password) && password.length < 8) errors.push('كلمة المرور 8 أحرف على الأقل');
-  return { errors, value: { username, fullName, role, password, active } };
+  return { errors, value: { username, fullName, role, password, active, branchId } };
 }
 
-const userColumns = 'id, username, full_name, role, active, last_login, created_at';
+const userColumns = 'id, username, full_name, role, active, branch_id, last_login, created_at';
 
 async function activeAdmins(exceptId) {
   const { rows } = await pool.query(
@@ -50,8 +51,13 @@ router.get('/roles', (req, res) => {
 // ---------- المستخدمين ----------
 
 router.get('/users', adminOnly('users'), async (req, res) => {
-  const { rows } = await pool.query(`SELECT ${userColumns} FROM users ORDER BY username`);
-  res.json(rows.map((u) => ({ ...u, id: String(u.id), roleLabel: ROLES[u.role]?.label || u.role })));
+  const { rows } = await pool.query(
+    `SELECT ${userColumns}, (SELECT name FROM branches b WHERE b.id = users.branch_id) AS branch_name
+     FROM users ORDER BY username`,
+  );
+  res.json(rows.map((u) => ({
+    ...u, id: String(u.id), branch_id: u.branch_id == null ? null : String(u.branch_id), roleLabel: ROLES[u.role]?.label || u.role,
+  })));
 });
 
 router.post('/users', adminOnly('users'), async (req, res) => {
@@ -59,14 +65,15 @@ router.post('/users', adminOnly('users'), async (req, res) => {
   if (errors.length) return res.status(400).json({ error: errors.join('، ') });
   try {
     const { rows } = await pool.query(
-      `INSERT INTO users (username, full_name, role, active, password_hash) VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO users (username, full_name, role, active, password_hash, branch_id) VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING ${userColumns}`,
-      [value.username, value.fullName, value.role, value.active, hashPassword(value.password)],
+      [value.username, value.fullName, value.role, value.active, hashPassword(value.password), value.branchId],
     );
     audit.log(req, 'create', 'users', rows[0].id, `مستخدم: ${value.username} (${ROLES[value.role].label})`);
     return res.status(201).json(rows[0]);
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'اسم المستخدم مستخدم من قبل' });
+    if (err.code === '23503') return res.status(400).json({ error: 'الفرع المختار غير موجود' });
     throw err;
   }
 });
@@ -85,15 +92,21 @@ router.put('/users/:id', adminOnly('users'), async (req, res) => {
   }
   if (String(req.user.id) === id && !value.active) return res.status(400).json({ error: 'لا يمكنك إيقاف حسابك' });
 
-  const { rows } = await pool.query(
-    `UPDATE users SET full_name = $2, role = $3, active = $4,
-       password_hash = COALESCE($5, password_hash)
-     WHERE id = $1 RETURNING ${userColumns}`,
-    [id, value.fullName, value.role, value.active, value.password ? hashPassword(value.password) : null],
-  );
+  let rows;
+  try {
+    ({ rows } = await pool.query(
+      `UPDATE users SET full_name = $2, role = $3, active = $4,
+         password_hash = COALESCE($5, password_hash), branch_id = $6
+       WHERE id = $1 RETURNING ${userColumns}`,
+      [id, value.fullName, value.role, value.active, value.password ? hashPassword(value.password) : null, value.branchId],
+    ));
+  } catch (err) {
+    if (err.code === '23503') return res.status(400).json({ error: 'الفرع المختار غير موجود' });
+    throw err;
+  }
   forgetUser(id);
-  const changes = audit.diff(before, { full_name: value.fullName, role: value.role, active: value.active },
-    { full_name: 'الاسم', role: 'الدور', active: 'فعّال' });
+  const changes = audit.diff(before, { full_name: value.fullName, role: value.role, active: value.active, branch_id: value.branchId },
+    { full_name: 'الاسم', role: 'الدور', active: 'فعّال', branch_id: 'الفرع' });
   if (value.password) changes['كلمة المرور'] = ['***', 'تم تغييرها'];
   audit.log(req, 'update', 'users', id, `مستخدم: ${before.username}`, changes);
   return res.json(rows[0]);

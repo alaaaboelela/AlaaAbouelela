@@ -21,9 +21,11 @@ const MODULES = {
     icon: 'contract',
     group: 'company',
     table: 'contracts',
-    from: 'contracts t',
+    from: 'contracts t LEFT JOIN branches b ON b.id = t.branch_id',
+    branch: 't.branch_id',
     fields: [
       { name: 'company_name', label: 'اسم الشركة', type: 'text', required: true, wide: true },
+      { name: 'branch_id', label: 'الفرع', type: 'branch' },
       { name: 'contract_number', label: 'رقم العقد', type: 'text', mono: true },
       { name: 'contract_type', label: 'نوع العقد', type: 'select', options: CONTRACT_TYPES },
       { name: 'start_date', label: 'تاريخ البداية', type: 'date' },
@@ -33,7 +35,7 @@ const MODULES = {
       { name: 'contact_phone', label: 'جوال التواصل', type: 'text', mono: true },
       { name: 'notes', label: 'ملاحظات', type: 'textarea' },
     ],
-    extra: (ctx) => `(t.end_date - ${ctx.p.add(ctx.today)}::date) AS days_left`,
+    extra: (ctx) => `b.name AS branch_name, (t.end_date - ${ctx.p.add(ctx.today)}::date) AS days_left`,
     status: (ctx) => expiryStatus('t.end_date', ctx, 'active'),
     statuses: {
       expiring: { label: 'ينتهي قريبًا', tone: 'expiring' },
@@ -46,6 +48,7 @@ const MODULES = {
     columns: [
       { key: 'company_name', type: 'title', sub: 'contract_type' },
       { key: 'contract_number', label: 'رقم العقد', type: 'mono' },
+      { key: 'branch_name', label: 'الفرع', type: 'text', branchOnly: true },
       { key: 'value', label: 'القيمة', type: 'money' },
       { key: 'end_date', label: 'تاريخ الانتهاء', type: 'date' },
       { key: 'days_left', label: 'المتبقي', type: 'days' },
@@ -97,6 +100,7 @@ const MODULES = {
     table: 'cars',
     from: `cars t
       LEFT JOIN residencies e ON e.id = t.driver_id
+      LEFT JOIN branches b ON b.id = t.branch_id
       LEFT JOIN LATERAL (
         SELECT next_service_date FROM car_events
         WHERE car_id = t.id AND next_service_date IS NOT NULL
@@ -108,6 +112,7 @@ const MODULES = {
       ) ev ON true`,
     fields: [
       { name: 'plate_number', label: 'رقم اللوحة', type: 'text', required: true, placeholder: 'أ ب ج 1234' },
+      { name: 'branch_id', label: 'الفرع', type: 'branch' },
       { name: 'make', label: 'الشركة المصنعة', type: 'text', placeholder: 'تويوتا' },
       { name: 'model', label: 'الموديل', type: 'text', placeholder: 'هايلكس' },
       { name: 'year', label: 'سنة الصنع', type: 'int', min: 1980, max: 2100 },
@@ -122,7 +127,7 @@ const MODULES = {
       { name: 'car_status', label: 'حالة السيارة', type: 'select', options: CAR_STATUSES, default: 'في الخدمة' },
       { name: 'notes', label: 'ملاحظات', type: 'textarea' },
     ],
-    extra: () => `e.name AS driver_name, e.iqama_number AS driver_iqama,
+    extra: () => `e.name AS driver_name, e.iqama_number AS driver_iqama, b.name AS branch_name,
       ns.next_service_date, ev.events_count, ev.maintenance_cost`,
     // تحتاج انتباه: استمارة أو تأمين أو صيانة قريبة/متأخرة
     status: ({ p, today, alertEnd }) => {
@@ -140,11 +145,13 @@ const MODULES = {
       ok: { label: 'سليمة', tone: 'valid' },
     },
     badge: ['attention', 'expired'],
+    branch: 't.branch_id',
     search: ['t.plate_number', 't.make', 't.model', 't.vin', 'e.name'],
     sort: 'plate_number ASC, id ASC',
     columns: [
       { key: 'plate_number', type: 'plate', sub: ['make', 'model', 'year'] },
       { key: 'driver_name', label: 'السائق', type: 'text' },
+      { key: 'branch_name', label: 'الفرع', type: 'text', branchOnly: true },
       { key: 'value', label: 'القيمة', type: 'money' },
       { key: 'registration_expiry', label: 'الاستمارة', type: 'date' },
       { key: 'insurance_expiry', label: 'التأمين', type: 'date' },
@@ -152,7 +159,7 @@ const MODULES = {
     ],
     title: 'plate_number',
     // أي تعديل على هذه الحقول يُسجل تلقائيًا في سجل السيارة
-    trackChanges: ['plate_number', 'value', 'driver_id', 'odometer', 'car_status', 'registration_expiry', 'insurance_expiry', 'color'],
+    trackChanges: ['plate_number', 'branch_id', 'value', 'driver_id', 'odometer', 'car_status', 'registration_expiry', 'insurance_expiry', 'color'],
     children: {
       events: {
         label: 'سجل الصيانة والتحديثات',
@@ -456,6 +463,48 @@ const MODULES = {
 };
 
 // نسخة آمنة للواجهة (بدون SQL)
+MODULES.branches = {
+  label: 'الفروع والمنشآت',
+  singular: 'فرع',
+  icon: 'building',
+  group: 'company',
+  table: 'branches',
+  from: 'branches t',
+  branch: 't.id',
+  fields: [
+    { name: 'name', label: 'اسم الفرع / المنشأة', type: 'text', required: true, wide: true, placeholder: 'فرع الرياض' },
+    { name: 'city', label: 'المدينة', type: 'text' },
+    { name: 'cr_number', label: 'رقم السجل التجاري', type: 'text', mono: true },
+    { name: 'unified_number', label: 'الرقم الموحد للمنشأة (700)', type: 'text', mono: true },
+    { name: 'manager', label: 'المسؤول', type: 'text' },
+    { name: 'phone', label: 'الجوال', type: 'text', mono: true },
+    { name: 'notes', label: 'ملاحظات', type: 'textarea' },
+  ],
+  extra: ({ p, today, alertEnd }) => `
+    (SELECT count(*)::int FROM residencies r WHERE r.branch_id = t.id) AS employees_count,
+    (SELECT count(*)::int FROM residencies r WHERE r.branch_id = t.id
+       AND r.expiry_date <= ${p.add(alertEnd)}::date) AS attention_count,
+    (SELECT count(*)::int FROM cars c WHERE c.branch_id = t.id) AS cars_count,
+    (SELECT count(*)::int FROM contracts k WHERE k.branch_id = t.id AND k.end_date >= ${p.add(today)}::date) AS contracts_count`,
+  status: () => "'active'",
+  statuses: { active: { label: 'نشط', tone: 'valid' } },
+  search: ['t.name', 't.city', 't.cr_number', 't.unified_number', 't.manager'],
+  sort: 'name ASC, id ASC',
+  columns: [
+    { key: 'name', type: 'title', sub: 'city' },
+    { key: 'cr_number', label: 'السجل التجاري', type: 'mono' },
+    { key: 'manager', label: 'المسؤول', type: 'text' },
+    { key: 'employees_count', label: 'الموظفين', type: 'number' },
+    { key: 'attention_count', label: 'إقامات تحتاج تجديد', type: 'number' },
+    { key: 'cars_count', label: 'السيارات', type: 'number' },
+    { key: 'contracts_count', label: 'عقود سارية', type: 'number' },
+  ],
+  title: 'name',
+};
+
+// باقي الأقسام تتبع فرع الموظف المرتبط بها
+for (const m of Object.values(MODULES)) m.branch ||= 'e.branch_id';
+
 function publicSchema() {
   const out = {};
   for (const [key, m] of Object.entries(MODULES)) {

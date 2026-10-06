@@ -20,6 +20,19 @@ function sectionFor(req) {
   return null;
 }
 
+// الفرع الحالي: المستخدم المربوط بفرع مقيّد به دائمًا، والباقي يختار من الواجهة (X-Branch أو ?branch=)
+function scopeBranch(req, res, next) {
+  if (req.user.branchId) {
+    req.branch = req.user.branchId;
+    req.branchLocked = true;
+  } else {
+    const v = String(req.get('X-Branch') || req.query.branch || '');
+    req.branch = /^\d{1,18}$/.test(v) ? v : null;
+    req.branchLocked = false;
+  }
+  next();
+}
+
 function authorize(req, res, next) {
   const section = sectionFor(req);
   if (!section) return next();
@@ -45,6 +58,7 @@ function createApp() {
   app.post('/api/logout', auth.logout);
 
   app.use('/api', auth.requireAuth);
+  app.use('/api', scopeBranch);
   app.use('/api', authorize);
   app.get('/api/me', (req, res) => res.json({
     id: String(req.user.id),
@@ -53,6 +67,7 @@ function createApp() {
     role: req.user.role,
     roleLabel: ROLES[req.user.role]?.label || req.user.role,
     permissions: permissionsFor(req.user.role),
+    branch: req.user.branchId ? { id: req.user.branchId, name: req.user.branchName } : null,
     emailEnabled: alerts.emailEnabled(),
     alertEmails: config.alertEmails,
   }));
@@ -61,7 +76,7 @@ function createApp() {
   app.use('/api', modules);
 
   app.get('/api/alerts', async (req, res) => {
-    res.json({ ...(await alerts.collectAlerts()), emailEnabled: alerts.emailEnabled() });
+    res.json({ ...(await alerts.collectAlerts(req.branch)), emailEnabled: alerts.emailEnabled() });
   });
   app.post('/api/alerts/send-email', async (req, res) => {
     try {

@@ -121,7 +121,8 @@ const CACHE_MS = 10 * 1000;
 async function loadUser(id) {
   const hit = userCache.get(id);
   if (hit && hit.at > Date.now() - CACHE_MS) return hit.user;
-  const { rows } = await pool.query('SELECT id, username, full_name, role, active FROM users WHERE id = $1', [id]);
+  const { rows } = await pool.query(`SELECT u.id, u.username, u.full_name, u.role, u.active, u.branch_id, b.name AS branch_name
+     FROM users u LEFT JOIN branches b ON b.id = u.branch_id WHERE u.id = $1`, [id]);
   const user = rows[0] || null;
   userCache.set(id, { user, at: Date.now() });
   return user;
@@ -140,7 +141,14 @@ async function requireAuth(req, res, next) {
     setSessionCookie(res, '', 0);
     return res.status(401).json({ error: 'يجب تسجيل الدخول' });
   }
-  req.user = { id: user.id, name: user.username, fullName: user.full_name, role: user.role };
+  req.user = {
+    id: user.id,
+    name: user.username,
+    fullName: user.full_name,
+    role: user.role,
+    branchId: user.branch_id ? String(user.branch_id) : null,
+    branchName: user.branch_name || null,
+  };
   return next();
 }
 

@@ -24,7 +24,7 @@ test('الأقسام', { skip: !TEST_DB && 'TEST_DATABASE_URL غير مضبوط'
 
   await migrate();
   await pool.query(`TRUNCATE residencies, users, contracts, driver_cards, cars, car_events, advances,
-    advance_payments, custody, documents, evaluations, audit_log, employee_docs, visas, leaves RESTART IDENTITY CASCADE`);
+    advance_payments, custody, documents, evaluations, audit_log, employee_docs, visas, leaves, branches RESTART IDENTITY CASCADE`);
   await pool.query("UPDATE settings SET value = '30' WHERE key = 'alert_days'");
   await pool.query('INSERT INTO users (username, password_hash) VALUES ($1, $2)', ['admin', hashPassword('secret123')]);
   const { rows: [emp] } = await pool.query(
@@ -62,7 +62,7 @@ test('الأقسام', { skip: !TEST_DB && 'TEST_DATABASE_URL غير مضبوط'
 
   await t.test('المخطط يُرسل للواجهة بدون SQL', async () => {
     const { data } = await call('/schema');
-    assert.deepEqual(Object.keys(data).sort(), ['advances', 'cars', 'contracts', 'custody', 'driver_cards', 'employee_docs', 'evaluations', 'leaves', 'visas']);
+    assert.deepEqual(Object.keys(data).sort(), ['advances', 'branches', 'cars', 'contracts', 'custody', 'driver_cards', 'employee_docs', 'evaluations', 'leaves', 'visas']);
     assert.equal(JSON.stringify(data).includes('SELECT'), false);
   });
 
@@ -170,7 +170,8 @@ test('الأقسام', { skip: !TEST_DB && 'TEST_DATABASE_URL غير مضبوط'
     // حذف العقد يحذف مستنداته
     assert.equal((await call(`/m/contracts/${contract.id}`, 'DELETE')).status, 204);
     assert.equal(fs.readdirSync(process.env.UPLOAD_DIR).length, 0);
-    assert.deepEqual((await call(`/documents?entity=contracts&id=${contract.id}`)).data, []);
+    assert.equal((await call(`/documents?entity=contracts&id=${contract.id}`)).status, 404);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM documents')).rows[0].n, 0);
   });
 
   await t.test('التقييمات', async () => {
