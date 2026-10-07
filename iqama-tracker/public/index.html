@@ -4,7 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>منصة الإقامات</title>
-  <link rel="icon" href="data:,">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0b6b61">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="الإقامات">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" href="/icons/favicon-32.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
@@ -422,10 +427,37 @@
             <div class="card">
               <div class="setting-head">
                 <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-file"/></svg></span>
-                <div><h2 class="card-title">قالب الاستيراد</h2><p class="card-sub">نزّل القالب، املأه في Excel، ثم احفظه بصيغة CSV UTF-8 واستورده من صفحة الإقامات.</p></div>
+                <div><h2 class="card-title">قالب الاستيراد</h2><p class="card-sub">نزّلي ملف Excel، املئيه، واستورديه من صفحة الإقامات. كل قسم له قالبه من زرار "نموذج الاستيراد" في صفحته.</p></div>
               </div>
               <div class="card-body">
-                <button class="btn btn-ghost" id="templateBtn" type="button"><svg class="icon"><use href="icons.svg#i-download"/></svg>تنزيل القالب</button>
+                <a class="btn btn-ghost" href="/api/residencies/template.xlsx"><svg class="icon"><use href="icons.svg#i-download"/></svg>تنزيل قالب الإقامات</a>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="setting-head">
+                <span class="setting-icon"><img src="icons/icon-192.png" alt="" width="42" height="42" style="border-radius:12px"></span>
+                <div><h2 class="card-title">تثبيت المنصة كتطبيق</h2><p class="card-sub">أيقونة على شاشة الموبايل أو سطح المكتب، وتفتح في نافذة مستقلة زي أي تطبيق.</p></div>
+              </div>
+              <div class="card-body">
+                <div class="status-line" id="pwaStatus"></div>
+                <button class="btn btn-primary" id="pwaInstall" type="button" hidden><svg class="icon"><use href="icons.svg#i-download"/></svg>تثبيت التطبيق</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="setting-head">
+                <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-send"/></svg></span>
+                <div><h2 class="card-title">تنبيهات SMS وواتساب</h2><p class="card-sub">ملخص يومي قصير على جوالات المسؤولين بعدد الإقامات والمستندات اللي محتاجة متابعة.</p></div>
+              </div>
+              <div class="card-body">
+                <div class="status-line" id="smsStatus"></div>
+                <div class="status-line" id="waStatus"></div>
+                <div class="status-line" id="phonesStatus"></div>
+                <div class="inline-row">
+                  <button class="btn btn-ghost" id="sendSms" type="button"><svg class="icon"><use href="icons.svg#i-send"/></svg>إرسال SMS الآن</button>
+                  <button class="btn btn-ghost" id="sendWa" type="button"><svg class="icon"><use href="icons.svg#i-send"/></svg>إرسال واتساب الآن</button>
+                </div>
               </div>
             </div>
           </div>
@@ -569,6 +601,7 @@
 
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
+  <script src="pwa.js"></script>
   <script src="hijri.js"></script>
   <script src="app.js"></script>
   <script src="modules.js"></script>

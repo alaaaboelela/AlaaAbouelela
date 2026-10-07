@@ -3,6 +3,7 @@ const nodemailer = require('nodemailer');
 const { pool, getAlertDays, getSetting, setSetting } = require('./db');
 const { statusCondition, columns, params, today, toApi } = require('./residencies');
 const config = require('./config');
+const notify = require('./notify');
 
 const MAX_ROWS = 500;
 
@@ -20,15 +21,16 @@ async function collectAlerts(branch = null) {
   const branchCond = branch ? ` AND branch_id = ${p.add(branch)}` : '';
   const where = `((${expiring}) OR (expiry_date >= ${recentStart}::date AND expiry_date < ${todayParam}::date))${branchCond}`;
 
-  const [{ rows }, { rows: [{ total }] }] = await Promise.all([
+  const [{ rows }, { rows: [{ total, expired }] }] = await Promise.all([
     pool.query(
       `SELECT ${columns(todayParam)} FROM residencies WHERE ${where}
        ORDER BY expiry_date ASC LIMIT ${MAX_ROWS}`,
       p.values,
     ),
-    pool.query(`SELECT count(*)::int AS total FROM residencies WHERE ${where}`, p.values),
+    pool.query(`SELECT count(*)::int AS total, count(*) FILTER (WHERE expiry_date < ${todayParam}::date)::int AS expired
+      FROM residencies WHERE ${where}`, p.values),
   ]);
-  return { alertDays, total, items: rows.map((r) => toApi(r, alertDays)) };
+  return { alertDays, total, expired, items: rows.map((r) => toApi(r, alertDays)) };
 }
 
 function escapeHtml(s) {
@@ -116,30 +118,59 @@ async function sendAlertEmail() {
   return { sent: true, total: data.total + moduleCount };
 }
 
-// يُفحص كل ساعة، ويُرسل مرة واحدة يوميًا بعد ساعة ALERT_HOUR بتوقيت السعودية
+// ملخص قصير بالـ SMS أو واتساب لأرقام ALERT_PHONES
+async function sendAlertMessage(channel) {
+  const enabled = channel === 'sms' ? notify.smsEnabled() : notify.whatsappEnabled();
+  if (!enabled) {
+    throw new Error(channel === 'sms'
+      ? 'إعدادات SMS غير مضبوطة (SMS_PROVIDER وبيانات الحساب و ALERT_PHONES)'
+      : 'إعدادات واتساب غير مضبوطة (WHATSAPP_TOKEN و WHATSAPP_PHONE_NUMBER_ID و ALERT_PHONES)');
+  }
+  const text = notify.buildSummary(await collectAlerts(), await collectModuleAlerts());
+  if (!text) return { sent: false, recipients: 0 };
+  const recipients = channel === 'sms'
+    ? await notify.sendSms(config.alertPhones, text)
+    : await notify.sendWhatsapp(config.alertPhones, text);
+  return { sent: true, recipients, text };
+}
+
+const CHANNELS = [
+  { key: 'email', label: 'الإيميل', enabled: emailEnabled, send: sendAlertEmail },
+  { key: 'sms', label: 'SMS', enabled: () => notify.smsEnabled(), send: () => sendAlertMessage('sms') },
+  { key: 'whatsapp', label: 'واتساب', enabled: () => notify.whatsappEnabled(), send: () => sendAlertMessage('whatsapp') },
+];
+
+// يُفحص كل ساعة، ويُرسل مرة واحدة يوميًا لكل قناة بعد ساعة ALERT_HOUR بتوقيت السعودية
 async function dailyCheck() {
-  if (!emailEnabled()) return;
   const hour = Number(new Intl.DateTimeFormat('en-US', {
     timeZone: config.timeZone, hour: 'numeric', hourCycle: 'h23',
   }).format(new Date()));
   if (hour < config.alertHour) return;
-  if ((await getSetting('last_alert_email')) === today()) return;
-  try {
-    const result = await sendAlertEmail();
-    await setSetting('last_alert_email', today());
-    if (result.sent) console.log(`تم إرسال إيميل التنبيه (${result.total} إقامة)`);
-  } catch (err) {
-    console.error('فشل إرسال إيميل التنبيه:', err.message);
+  for (const ch of CHANNELS) {
+    if (!ch.enabled()) continue;
+    const key = ch.key === 'email' ? 'last_alert_email' : `last_alert_${ch.key}`;
+    if ((await getSetting(key)) === today()) continue;
+    try {
+      const result = await ch.send();
+      await setSetting(key, today());
+      if (result.sent) console.log(`تم إرسال تنبيه ${ch.label}`);
+    } catch (err) {
+      console.error(`فشل إرسال تنبيه ${ch.label}:`, err.message);
+    }
   }
 }
 
 function startScheduler() {
-  if (!emailEnabled()) {
-    console.log('تنبيهات الإيميل غير مفعلة (اضبطي SMTP_HOST و ALERT_EMAILS في ملف .env)');
+  const active = CHANNELS.filter((ch) => ch.enabled());
+  if (!active.length) {
+    console.log('التنبيهات اليومية غير مفعلة (اضبطي الإيميل أو SMS أو واتساب في ملف .env)');
     return;
   }
+  console.log(`التنبيهات اليومية مفعلة: ${active.map((ch) => ch.label).join('، ')}`);
   dailyCheck();
   setInterval(dailyCheck, 60 * 60 * 1000).unref();
 }
 
-module.exports = { collectAlerts, collectModuleAlerts, buildEmail, sendAlertEmail, startScheduler, emailEnabled };
+module.exports = {
+  collectAlerts, collectModuleAlerts, buildEmail, sendAlertEmail, sendAlertMessage, startScheduler, emailEnabled, dailyCheck,
+};

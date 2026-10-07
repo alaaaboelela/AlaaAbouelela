@@ -100,6 +100,28 @@ function initials(name) {
   return (parts[0]?.[0] || '') + (parts[1]?.[0] || '');
 }
 
+// صورة الموظف أو الحروف الأولى من اسمه
+function avatar(r, cls = '') {
+  return r.photo
+    ? `<img class="initials photo ${cls}" src="${esc(r.photo)}" alt="" loading="lazy" decoding="async">`
+    : `<span class="initials ${cls}">${esc(initials(r.name))}</span>`;
+}
+
+// تصغير الصورة وقصّها مربعة قبل الرفع (أخف على الخادم وأسرع على الموبايل)
+async function squareJpeg(file, size = 360) {
+  const img = await createImageBitmap(file).catch(() => null);
+  if (!img) throw new Error('تعذر قراءة الصورة، جربي صورة JPG أو PNG');
+  const side = Math.min(img.width, img.height);
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, size, size);
+  ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
+  return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.86));
+}
+
 async function api(url, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...options.headers };
   if (!Branch.locked && Branch.current) headers['X-Branch'] = Branch.current;
@@ -293,7 +315,7 @@ async function loadUpcoming() {
   const { items } = await api('/api/residencies?status=expiring&pageSize=6');
   $('upcoming').innerHTML = items.length ? items.map((r, i) => `
     <li style="animation-delay:${0.25 + i * 0.05}s">
-      <span class="initials">${esc(initials(r.name))}</span>
+      ${avatar(r)}
       <div class="who"><strong>${esc(r.name)}</strong><small class="mono">${esc(r.iqamaNumber)}</small></div>
       ${r.daysLeft === 0
         ? `<span class="days-chip ${r.status} today"><b>اليوم</b></span>`
@@ -438,7 +460,7 @@ async function loadList() {
 
   $('rows').innerHTML = data.items.map((r, i) => `
     <tr style="animation-delay:${Math.min(i, 12) * 25}ms">
-      <td><div class="person"><span class="initials">${esc(initials(r.name))}</span>
+      <td><div class="person">${avatar(r)}
         <div><strong>${esc(r.name)}</strong><small>${esc(r.nationality || '—')}</small></div></div></td>
       <td><span class="mono">${esc(r.iqamaNumber)}</span></td>
       <td>${esc(r.employer || '—')}${r.branchName && !Branch.current ? `<span class="sub">${esc(r.branchName)}</span>` : ''}</td>
@@ -673,9 +695,37 @@ async function loadSettings() {
   $('sendEmail').disabled = !me.emailEnabled;
   const canSettings = can('settings', 'write');
   for (const el of [$('saveSettings'), $('sendEmail'), $('alertDays'), $('companyName'), $('saveCompany'), ...$$('[data-step], [data-days]')]) el.disabled = !canSettings || (el.id === 'sendEmail' && !me.emailEnabled);
+  const msg = me.messaging;
+  const off = (what) => `<span class="pill neutral">غير مفعّل</span> اضبطي ${what} في ملف <span class="mono">.env</span>`;
+  $('smsStatus').innerHTML = `<b>SMS:</b> ${msg.sms.enabled ? `<span class="pill valid">${icon('check', 'icon-sm')}مفعّل</span> عن طريق ${esc(msg.sms.provider)}`
+    : off('<span class="mono">SMS_PROVIDER</span> وبيانات الحساب')}`;
+  $('waStatus').innerHTML = `<b>واتساب:</b> ${msg.whatsapp.enabled ? `<span class="pill valid">${icon('check', 'icon-sm')}مفعّل</span>${msg.whatsapp.template ? ` بالقالب <span class="mono">${esc(msg.whatsapp.template)}</span>` : ' (بدون قالب معتمد)'}`
+    : off('<span class="mono">WHATSAPP_TOKEN</span> و <span class="mono">WHATSAPP_PHONE_NUMBER_ID</span>')}`;
+  $('phonesStatus').innerHTML = `<b>الأرقام:</b> ${msg.phones.length ? msg.phones.map((p) => `<span class="mono">${esc(p)}</span>`).join('، ') : off('<span class="mono">ALERT_PHONES</span>')}`;
+  $('sendSms').disabled = !canSettings || !msg.sms.enabled;
+  $('sendWa').disabled = !canSettings || !msg.whatsapp.enabled;
   renderNotifyStatus();
+  renderPwaStatus();
   renderThemeOptions();
 }
+
+function renderPwaStatus() {
+  const st = PWA.state();
+  const text = {
+    installed: `<span class="pill valid">${icon('check', 'icon-sm')}مثبّتة</span> المنصة مفتوحة كتطبيق على الجهاز ده`,
+    prompt: '<span class="pill neutral">غير مثبّتة</span> اضغطي الزرار وهتظهر رسالة التأكيد',
+    ios: 'على الآيفون: افتحي المنصة من <b>Safari</b> ← زرار المشاركة <b>⎋</b> ← <b>إضافة إلى الشاشة الرئيسية</b>',
+    manual: 'من قائمة المتصفح (⋮) اختاري <b>تثبيت التطبيق</b> أو <b>إضافة إلى الشاشة الرئيسية</b>',
+    insecure: '<span class="pill neutral">غير متاح</span> التثبيت محتاج المنصة تكون على رابط <span class="mono">https</span> (بعد ربط الدومين على السيرفر)',
+  }[st];
+  $('pwaStatus').innerHTML = text;
+  $('pwaInstall').hidden = st !== 'prompt';
+}
+document.addEventListener('pwachange', () => { if (state.view === 'settings') renderPwaStatus(); });
+$('pwaInstall').addEventListener('click', async () => {
+  if (await PWA.install()) toast('تم تثبيت المنصة كتطبيق');
+  renderPwaStatus();
+});
 
 function renderNotifyStatus() {
   const supported = 'Notification' in window;
@@ -739,15 +789,20 @@ $('sendEmail').addEventListener('click', async () => {
   }
 });
 
-$('templateBtn').addEventListener('click', () => {
-  const csv = '﻿الاسم,رقم الإقامة,تاريخ الانتهاء هجري,تاريخ الانتهاء,الجنسية,الجوال,جهة العمل,ملاحظات\r\n' +
-    'محمد أحمد,2123456789,1448-06-15,,مصر,0501234567,شركة المثال,\r\n';
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  a.download = 'iqama-template.csv';
-  a.click();
-  URL.revokeObjectURL(a.href);
-});
+for (const [id, channel, label] of [['sendSms', 'sms', 'SMS'], ['sendWa', 'whatsapp', 'واتساب']]) {
+  $(id).addEventListener('click', async () => {
+    const btn = $(id);
+    btn.disabled = true;
+    try {
+      const res = await api(`/api/alerts/send-${channel}`, { method: 'POST' });
+      toast(res.sent ? `تم إرسال ${label} إلى ${fmt(res.recipients)} رقم` : 'لا يوجد شيء يحتاج تنبيهًا الآن', res.sent ? 'success' : 'info');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
 
 // ---------- المظهر ----------
 

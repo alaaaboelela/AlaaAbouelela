@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b6b61">
+  <title>غير متصل — منصة الإقامات</title>
+  <link rel="icon" href="/icons/favicon-32.png">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/theme.js"></script>
+  <style>
+    .offline { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--bg); color: var(--text); font-family: var(--font); }
+    .offline-card { max-width: 420px; text-align: center; display: grid; gap: 14px; justify-items: center; }
+    .offline-card img { width: 72px; height: 72px; border-radius: 18px; }
+    .offline-card h1 { font-size: 22px; margin: 0; }
+    .offline-card p { color: var(--text-2); margin: 0; line-height: 1.8; }
+  </style>
+</head>
+<body>
+  <main class="offline">
+    <div class="offline-card">
+      <img src="/icons/icon-192.png" alt="">
+      <h1>أنت غير متصل بالإنترنت</h1>
+      <p>المنصة محتاجة اتصال بالخادم عشان تعرض بيانات الموظفين. أول ما النت يرجع الصفحة هتفتح لوحدها.</p>
+      <button class="btn btn-primary" type="button" onclick="location.reload()">إعادة المحاولة</button>
+    </div>
+  </main>
+  <script>addEventListener('online', () => location.reload());</script>
+</body>
+</html>

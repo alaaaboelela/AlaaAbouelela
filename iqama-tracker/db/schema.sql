@@ -280,3 +280,6 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS branch_id BIGINT REFERENCES branches 
 CREATE INDEX IF NOT EXISTS residencies_branch_idx ON residencies (branch_id, expiry_date);
 CREATE INDEX IF NOT EXISTS contracts_branch_idx ON contracts (branch_id);
 CREATE INDEX IF NOT EXISTS cars_branch_idx ON cars (branch_id);
+
+-- صورة الموظف (اسم الملف داخل مجلد الرفع)
+ALTER TABLE residencies ADD COLUMN IF NOT EXISTS photo TEXT;

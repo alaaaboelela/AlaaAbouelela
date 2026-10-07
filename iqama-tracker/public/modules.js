@@ -654,7 +654,18 @@ const Modules = (() => {
       ${rows.length ? `<ul class="mini-list">${rows.map((x) => `<li data-emp-open="${key}:${x.id}">${render(x)}${statusPill(schema[key], x.status)}</li>`).join('')}</ul>`
         : '<p class="muted small">لا يوجد.</p>'}</section>`;
 
+    const canEdit = can('residencies', 'write');
     $('dBody').innerHTML = `
+      <div class="emp-hero">
+        <div class="emp-photo">${avatar(r, 'xl')}
+          ${canEdit ? `<label class="photo-btn" title="${r.photo ? 'تغيير الصورة' : 'إضافة صورة'}">${icon('image', 'icon-sm')}
+            <input type="file" accept="image/*" data-photo-input hidden></label>` : ''}</div>
+        <div class="emp-hero-text">
+          <strong>${esc(r.name)}</strong>
+          <small>${esc([r.nationality, r.branchName, r.employer].filter(Boolean).join(' · ') || '—')}</small>
+          ${canEdit && r.photo ? '<button class="link-btn" type="button" data-photo-remove>حذف الصورة</button>' : ''}
+        </div>
+      </div>
       <div class="summary-strip">
         <div><small>الإقامة</small><b class="${r.status === 'valid' ? 'ok' : 'warn'}">${remainingText(r.daysLeft)}</b></div>
         <div><small>سلف متبقية</small><b class="${remaining ? 'warn' : ''}">${money(remaining)}</b></div>
@@ -679,6 +690,32 @@ const Modules = (() => {
       ${list('evaluations', s.evaluations, (x) => `<div><strong class="stars-cell">${stars(x.score)}</strong><small class="muted">${esc(fmtGregorian(x.evaluation_date, 'short'))}${x.period ? ` · ${esc(x.period)}` : ''}${x.recommendation ? ` · ${esc(x.recommendation)}` : ''}</small></div>`)}
       ${list('cars', s.cars, (x) => `<div><strong class="plate sm">${esc(x.plate_number)}</strong><small class="muted">${esc([x.make, x.model].filter(Boolean).join(' '))}</small></div>`)}
       <section class="d-section" id="dDocs"></section>`;
+
+    const afterPhoto = (photo) => {
+      r.photo = photo;
+      openEmployee(r);
+      if (state.view === 'residencies') loadList();
+    };
+    const photoInput = $('dBody').querySelector('[data-photo-input]');
+    photoInput?.addEventListener('change', async () => {
+      const file = photoInput.files[0];
+      if (!file) return;
+      try {
+        const res = await api(`/api/residencies/${r.id}/photo`, {
+          method: 'PUT', headers: { 'Content-Type': 'image/jpeg' }, body: await squareJpeg(file),
+        });
+        toast('تم حفظ صورة الموظف');
+        afterPhoto(res.photo);
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    });
+    $('dBody').querySelector('[data-photo-remove]')?.addEventListener('click', async () => {
+      if (!(await confirmDialog('حذف صورة الموظف؟'))) return;
+      await api(`/api/residencies/${r.id}/photo`, { method: 'DELETE' });
+      toast('تم حذف الصورة');
+      afterPhoto(null);
+    });
 
     $('dBody').onclick = (e) => {
       const add = e.target.closest('[data-emp-add]');

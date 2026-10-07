@@ -1,6 +1,6 @@
 # منصة الإقامات — إدارة الموظفين والشركة
 
-نظام ويب لتسجيل إقامات الموظفين ومتابعة تواريخ انتهائها، مع تنبيهات قبل الانتهاء (في الصفحة، وإشعارات المتصفح، وإيميل يومي).
+نظام ويب لتسجيل إقامات الموظفين ومتابعة تواريخ انتهائها، مع تنبيهات قبل الانتهاء (في الصفحة، وإشعارات المتصفح، وإيميل و SMS وواتساب يوميًا). تتثبت كتطبيق على الموبايل (PWA).
 مصمم لقاعدة بيانات كبيرة (مُجرَّب على 200 ألف إقامة، والاستعلامات تأخذ أجزاء من الثانية).
 
 ## التقنيات
@@ -109,6 +109,22 @@ sudo -u postgres psql -d iqama -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
 
 لو رقم الإقامة موجود قبل كده، بياناته بتتحدث.
 
+## تنبيهات SMS وواتساب
+
+ملخص يومي قصير (عدد الإقامات والمستندات اللي محتاجة متابعة) يوصل لجوالات المسؤولين في نفس ساعة الإيميل (`ALERT_HOUR`).
+الإعدادات كلها في ملف `.env` (شوفي `.env.example`):
+
+1. **الأرقام:** `ALERT_PHONES=0501234567,0559876543`
+2. **SMS:** اختاري مزود واحد في `SMS_PROVIDER`:
+   - `unifonic`: محتاج `UNIFONIC_APP_SID` و `SMS_SENDER` (اسم المرسل المعتمد).
+   - `taqnyat`: محتاج `TAQNYAT_TOKEN` و `SMS_SENDER`.
+   - `twilio`: محتاج `TWILIO_ACCOUNT_SID` و `TWILIO_AUTH_TOKEN` و `SMS_SENDER` (رقم Twilio).
+   - `webhook`: أي رابط يستقبل `{channel, to, message}` (n8n / Make / Zapier).
+3. **واتساب:** حساب WhatsApp Business على Meta، وحطي `WHATSAPP_TOKEN` و `WHATSAPP_PHONE_NUMBER_ID`.
+   عشان الرسالة توصل في أي وقت لازم **قالب معتمد** من Meta فيه متغير واحد `{{1}}`، واسمه في `WHATSAPP_TEMPLATE`.
+
+بعد تعديل `.env` أعيدي تشغيل البرنامج، وجربي من **الإعدادات ← تنبيهات SMS وواتساب ← إرسال الآن**.
+
 ## الـ API
 
 كل المسارات (ما عدا الدخول) تحتاج تسجيل دخول.
@@ -125,6 +141,8 @@ sudo -u postgres psql -d iqama -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
 | POST | `/api/residencies/import` | استيراد CSV (نص الملف في الـ body) |
 | GET | `/api/alerts` | الإقامات اللي في التنبيه |
 | POST | `/api/alerts/send-email` | إرسال إيميل التنبيه الآن (للتجربة) |
+| POST | `/api/alerts/send-sms` · `/api/alerts/send-whatsapp` | إرسال ملخص SMS / واتساب الآن |
+| PUT · DELETE · GET | `/api/residencies/:id/photo` | صورة الموظف |
 | GET / PUT | `/api/settings` | `{ "alertDays": 30 }` |
 | GET | `/api/m/:section` | القائمة لأي قسم (`contracts`, `driver_cards`, `cars`, `advances`, `custody`) مع `q`, `status`, `page`, `sort` |
 | POST / GET / PUT / DELETE | `/api/m/:section/:id` | إضافة / عرض / تعديل / حذف |

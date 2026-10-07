@@ -69,7 +69,10 @@
       </div>
     </header>
 
-    <h1>${esc(data.title)}</h1>
+    <div class="title-row">
+      ${data.photo ? `<img class="photo" src="${esc(data.photo)}" alt="">` : ''}
+      <h1>${esc(data.title)}</h1>
+    </div>
     ${data.subtitle ? `<p class="subtitle">${esc(data.subtitle)}</p>` : ''}
 
     ${data.meta?.length ? `<dl class="meta">${data.meta.map((m) => `<div><dt>${esc(m.label)}</dt><dd>${cell(m.value, m.type)}</dd></div>`).join('')}</dl>` : ''}

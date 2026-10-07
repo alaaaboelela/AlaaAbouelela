@@ -343,6 +343,7 @@ const REPORTS = {
       const sec = (key, title, cols, rows) => (can(req.user, key, 'read') ? { title, columns: cols, rows, empty: 'لا يوجد' } : null);
       return {
         title: `ملف الموظف: ${e.name}`,
+        photo: e.photo,
         meta: [
           { label: 'رقم الإقامة', value: e.iqamaNumber, type: 'mono' },
           { label: 'الجنسية', value: e.nationality },

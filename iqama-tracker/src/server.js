@@ -6,6 +6,7 @@ const auth = require('./auth');
 const { router: residencies } = require('./residencies');
 const { router: modules } = require('./crud');
 const alerts = require('./alerts');
+const notify = require('./notify');
 const { router: users } = require('./users');
 const { router: reports } = require('./reports');
 const { can, permissionsFor, ROLES } = require('./permissions');
@@ -15,7 +16,7 @@ function sectionFor(req) {
   const p = req.path;
   const m = p.match(/^\/m\/([a-z_]+)/);
   if (m) return m[1];
-  if (/^\/(residencies|stats|employees|alerts)(\/|$)/.test(p)) return p.startsWith('/alerts/send-email') ? 'settings' : 'residencies';
+  if (/^\/(residencies|stats|employees|alerts)(\/|$)/.test(p)) return p.startsWith('/alerts/send-') ? 'settings' : 'residencies';
   if (p === '/settings' && req.method !== 'GET') return 'settings';
   if (p === '/documents') return String(req.query.entity || 'unknown');
   return null;
@@ -71,6 +72,7 @@ function createApp() {
     branch: req.user.branchId ? { id: req.user.branchId, name: req.user.branchName } : null,
     emailEnabled: alerts.emailEnabled(),
     alertEmails: config.alertEmails,
+    messaging: notify.status(),
   }));
   app.use('/api', users);
   app.use('/api', residencies);
@@ -87,6 +89,15 @@ function createApp() {
       res.status(400).json({ error: err.message });
     }
   });
+  for (const channel of ['sms', 'whatsapp']) {
+    app.post(`/api/alerts/send-${channel}`, async (req, res) => {
+      try {
+        res.json(await alerts.sendAlertMessage(channel));
+      } catch (err) {
+        res.status(400).json({ error: err.message });
+      }
+    });
+  }
 
   app.use('/api', (req, res) => res.status(404).json({ error: 'المسار غير موجود' }));
 

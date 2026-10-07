@@ -28,6 +28,27 @@ const config = {
   },
   alertEmails: (process.env.ALERT_EMAILS || '').split(',').map((s) => s.trim()).filter(Boolean),
   alertHour: Number(process.env.ALERT_HOUR ?? 8),
+  // أرقام جوالات المسؤولين اللي يوصلهم التنبيه اليومي (SMS / واتساب)، مفصولة بفاصلة
+  alertPhones: (process.env.ALERT_PHONES || '').split(',').map((s) => s.trim()).filter(Boolean),
+  sms: {
+    // unifonic | taqnyat | twilio | webhook (فارغ = غير مفعّل)
+    provider: (process.env.SMS_PROVIDER || '').toLowerCase(),
+    sender: process.env.SMS_SENDER || '',
+    unifonicAppSid: process.env.UNIFONIC_APP_SID || '',
+    taqnyatToken: process.env.TAQNYAT_TOKEN || '',
+    twilioSid: process.env.TWILIO_ACCOUNT_SID || '',
+    twilioToken: process.env.TWILIO_AUTH_TOKEN || '',
+    webhookUrl: process.env.SMS_WEBHOOK_URL || '',
+  },
+  whatsapp: {
+    // واتساب للأعمال الرسمي من Meta (WhatsApp Cloud API)
+    token: process.env.WHATSAPP_TOKEN || '',
+    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+    // الرسائل اللي بتبدأها الشركة لازم تكون قالب معتمد من Meta؛ القالب فيه متغير واحد {{1}} = نص الملخص
+    template: process.env.WHATSAPP_TEMPLATE || '',
+    language: process.env.WHATSAPP_LANG || 'ar',
+    apiVersion: process.env.WHATSAPP_API_VERSION || 'v21.0',
+  },
 };
 
 if (!config.sessionSecret) {

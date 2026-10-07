@@ -1437,3 +1437,23 @@ dialog.narrow { width: min(440px, calc(100vw - 32px)); }
   .cal-dot.neutral { background: var(--text-2); }
   .cal-wd { font-size: 10.5px; padding: 6px 0; }
 }
+
+/* ---------- صورة الموظف ---------- */
+
+img.initials { object-fit: cover; background: var(--surface-3); }
+.initials.xl { width: 84px; height: 84px; font-size: 26px; }
+.emp-hero { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; animation: rise .45s var(--ease) both; }
+.emp-photo { position: relative; flex: none; }
+.emp-photo .initials.xl { box-shadow: 0 0 0 4px var(--surface), 0 0 0 5px var(--border); }
+.photo-btn {
+  position: absolute; inset-inline-end: -2px; bottom: -2px; display: grid; place-items: center; width: 30px; height: 30px;
+  border-radius: 50%; background: var(--brand); color: var(--on-brand); cursor: pointer; box-shadow: 0 0 0 3px var(--surface);
+  transition: transform .2s var(--ease), background .2s;
+}
+.photo-btn:hover { transform: scale(1.08); background: var(--brand-hover); }
+.photo-btn:focus-within { outline: 2px solid var(--brand-ring); outline-offset: 2px; }
+.emp-hero-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.emp-hero-text strong { font-size: 17px; }
+.emp-hero-text small { color: var(--text-2); }
+.link-btn { align-self: flex-start; padding: 0; border: 0; background: none; color: var(--danger); font: inherit; font-size: 12.5px; cursor: pointer; }
+.link-btn:hover { text-decoration: underline; }

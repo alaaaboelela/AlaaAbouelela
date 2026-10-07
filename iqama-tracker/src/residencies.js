@@ -26,7 +26,7 @@ function params() {
 }
 
 const columns = (todayParam) => `id, name, iqama_number, expiry_date, nationality, phone, employer, notes, annual_leave_days,
-  branch_id, (SELECT b.name FROM branches b WHERE b.id = residencies.branch_id) AS branch_name,
+  branch_id, (SELECT b.name FROM branches b WHERE b.id = residencies.branch_id) AS branch_name, photo,
   created_at, updated_at, (expiry_date - ${todayParam}::date) AS days_left`;
 
 // شرط الفرع الحالي (فارغ = كل الفروع)
@@ -59,6 +59,7 @@ function toApi(row, alertDays) {
     annualLeaveDays: row.annual_leave_days,
     branchId: row.branch_id == null ? null : String(row.branch_id),
     branchName: row.branch_name || null,
+    photo: row.photo ? `/api/residencies/${row.id}/photo?v=${new Date(row.updated_at).getTime()}` : null,
     daysLeft: row.days_left,
     status: statusOf(row.days_left, alertDays),
     createdAt: row.created_at,
@@ -452,7 +453,7 @@ router.delete('/residencies/:id', async (req, res) => {
   if (!id) return;
   let rowCount;
   const { rows: [existing] } = await pool.query(
-    'SELECT name, iqama_number FROM residencies WHERE id = $1 AND ($2::bigint IS NULL OR branch_id = $2::bigint)',
+    'SELECT name, iqama_number, photo FROM residencies WHERE id = $1 AND ($2::bigint IS NULL OR branch_id = $2::bigint)',
     [id, req.branch || null]);
   if (!existing) return res.status(404).json({ error: 'الإقامة غير موجودة' });
   try {
@@ -465,6 +466,7 @@ router.delete('/residencies/:id', async (req, res) => {
   }
   if (!rowCount) return res.status(404).json({ error: 'الإقامة غير موجودة' });
   await require('./crud').deleteDocuments('residencies', id);
+  await require('./crud').deletePhotoFile(existing.photo);
   audit.log(req, 'delete', 'residencies', id, `إقامة: ${existing.name} (${existing.iqama_number})`);
   return res.status(204).end();
 });

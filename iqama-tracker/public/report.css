@@ -66,6 +66,8 @@ body {
 .when { text-align: left; font-size: 12px; line-height: 1.5; }
 
 h1 { margin: 18px 0 2px; font-size: 20px; }
+.title-row { display: flex; align-items: center; gap: 14px; }
+.title-row .photo { width: 72px; height: 72px; margin-top: 14px; border-radius: 10px; object-fit: cover; border: 1px solid var(--border); }
 .subtitle { margin: 0 0 12px; color: var(--text-2); }
 
 .meta {

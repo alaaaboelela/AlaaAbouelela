@@ -252,6 +252,70 @@ router.delete('/documents/:id', async (req, res) => {
   return res.status(204).end();
 });
 
+// ---------- صورة الموظف ----------
+
+const PHOTO_DIR = path.join(UPLOAD_DIR, 'photos');
+const MAX_PHOTO_BYTES = 3 * 1024 * 1024;
+
+// نوع الصورة من محتواها الفعلي وليس من اسمها
+function imageType(buf) {
+  if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return { ext: '.jpg', mime: 'image/jpeg' };
+  if (buf.length > 8 && buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return { ext: '.png', mime: 'image/png' };
+  if (buf.length > 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return { ext: '.webp', mime: 'image/webp' };
+  return null;
+}
+const PHOTO_MIME = { '.jpg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
+
+async function deletePhotoFile(name) {
+  if (name && /^[\w-]+\.(jpg|png|webp)$/.test(name)) await fs.promises.unlink(path.join(PHOTO_DIR, name)).catch(() => {});
+}
+
+async function visibleEmployee(req, id) {
+  const { rows } = await pool.query(
+    'SELECT id, name, photo FROM residencies WHERE id = $1 AND ($2::bigint IS NULL OR branch_id = $2::bigint)',
+    [id, req.branch || null],
+  );
+  return rows[0] || null;
+}
+
+router.put('/residencies/:id/photo', express.raw({ type: () => true, limit: MAX_PHOTO_BYTES }), async (req, res) => {
+  const id = parseId(req.params.id);
+  const emp = id && await visibleEmployee(req, id);
+  if (!emp) return res.status(404).json({ error: 'الموظف غير موجود' });
+  const buf = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+  const type = imageType(buf);
+  if (!type) return res.status(400).json({ error: 'الصورة لازم تكون JPG أو PNG أو WebP' });
+  const name = `${crypto.randomUUID()}${type.ext}`;
+  await fs.promises.mkdir(PHOTO_DIR, { recursive: true });
+  await fs.promises.writeFile(path.join(PHOTO_DIR, name), buf);
+  await pool.query('UPDATE residencies SET photo = $2, updated_at = now() WHERE id = $1', [id, name]);
+  await deletePhotoFile(emp.photo);
+  audit.log(req, 'upload', 'residencies', id, `صورة الموظف: ${emp.name}`);
+  return res.json({ photo: `/api/residencies/${id}/photo?v=${Date.now()}` });
+});
+
+router.delete('/residencies/:id/photo', async (req, res) => {
+  const id = parseId(req.params.id);
+  const emp = id && await visibleEmployee(req, id);
+  if (!emp) return res.status(404).json({ error: 'الموظف غير موجود' });
+  await pool.query('UPDATE residencies SET photo = NULL, updated_at = now() WHERE id = $1', [id]);
+  await deletePhotoFile(emp.photo);
+  audit.log(req, 'delete', 'residencies', id, `صورة الموظف: ${emp.name}`);
+  return res.status(204).end();
+});
+
+router.get('/residencies/:id/photo', async (req, res) => {
+  const id = parseId(req.params.id);
+  const emp = id && await visibleEmployee(req, id);
+  if (!emp?.photo) return res.status(404).end();
+  res.setHeader('Content-Type', PHOTO_MIME[path.extname(emp.photo)] || 'application/octet-stream');
+  res.setHeader('Cache-Control', 'private, max-age=86400');
+  res.setHeader('Content-Security-Policy', "default-src 'none'");
+  return res.sendFile(path.join(PHOTO_DIR, emp.photo), (err) => {
+    if (err && !res.headersSent) res.status(404).end();
+  });
+});
+
 // ---------- الموظفين (للاختيار والملف الشامل) ----------
 
 router.get('/employees', async (req, res) => {
@@ -736,4 +800,4 @@ async function logChanges(client, m, id, before, after, user) {
   );
 }
 
-module.exports = { router, validateFields, deleteDocuments, UPLOAD_DIR, inner, context, counts, employeeSummary };
+module.exports = { router, validateFields, deleteDocuments, deletePhotoFile, UPLOAD_DIR, inner, context, counts, employeeSummary };
