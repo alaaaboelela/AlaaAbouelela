@@ -57,12 +57,12 @@ $('otpBack').addEventListener('click', () => {
   showOtpStep(false);
 });
 
-function done() {
+function done(home = '/') {
   submit.classList.add('success');
   submit.innerHTML = '<svg class="icon"><use href="icons.svg#i-check-plain"/></svg><span>تم تسجيل الدخول</span>';
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   setTimeout(() => $('page').classList.add('leaving'), reduce ? 0 : 450);
-  setTimeout(() => location.replace('/'), reduce ? 50 : 900);
+  setTimeout(() => location.replace(home), reduce ? 50 : 900);
 }
 
 async function submitOtp() {
@@ -83,7 +83,7 @@ async function submitOtp() {
       $('otp').select();
       return;
     }
-    done();
+    done(body.home);
   } catch {
     setLoading(false);
     showError('تعذر الاتصال بالخادم، حاول مرة أخرى');
@@ -131,7 +131,7 @@ form.addEventListener('submit', async (e) => {
       showOtpStep(true);
       return;
     }
-    done();
+    done(body.home);
   } catch {
     setLoading(false);
     showError('تعذر الاتصال بالخادم، حاول مرة أخرى');

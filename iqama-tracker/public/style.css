@@ -1570,3 +1570,53 @@ dialog.wide { width: min(980px, calc(100vw - 32px)); }
   font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 15px; direction: ltr; text-align: center; }
 .tfa-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .tfa-admin { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: 13px; color: var(--text-2); }
+
+/* بوابة الموظف */
+body.portal { background: var(--bg); min-height: 100vh; }
+.portal-top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px max(16px, calc((100vw - 980px) / 2)); background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
+.portal-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.portal-brand strong { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.portal-brand small { color: var(--muted); font-size: 12px; }
+.portal-actions { display: flex; gap: 4px; }
+.portal-main { max-width: 980px; margin: 0 auto; padding: 20px 16px 40px; display: grid; gap: 16px; }
+.portal-hero { padding: 22px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: center; }
+.portal-me { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.portal-me h1 { font-size: 20px; margin: 0 0 4px; }
+.portal-me p { margin: 0; font-size: 13.5px; color: var(--text-2); }
+.portal-photo { width: 68px; height: 68px; border-radius: 50%; object-fit: cover; flex-shrink: 0; font-size: 22px; }
+.portal-iqama { display: flex; align-items: center; gap: 16px; padding: 14px 18px; border-radius: 16px; background: var(--surface-2); border: 1px solid var(--border); }
+.portal-iqama > div:last-child { display: grid; gap: 2px; font-size: 13px; }
+.portal-iqama strong { font-size: 16px; }
+.portal-iqama .pill { justify-self: start; margin-top: 4px; }
+.portal-iqama .iq-ring { --c: var(--chart); width: 76px; height: 76px; border-radius: 50%; display: grid; place-content: center; text-align: center; flex-shrink: 0;
+  background: radial-gradient(closest-side, var(--surface-2) 78%, transparent 80%), conic-gradient(var(--c) calc(var(--p) * 1turn), var(--surface-3) 0); }
+.portal-iqama.expiring .iq-ring { --c: var(--warning); }
+.portal-iqama.expired .iq-ring { --c: var(--danger); }
+.portal-iqama .iq-ring b { font-size: 20px; line-height: 1; }
+.portal-iqama .iq-ring small { font-size: 11px; color: var(--muted); }
+.portal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.portal-list { list-style: none; margin: 0; padding: 0; }
+.portal-list li { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+.portal-list li:last-child { border-bottom: 0; }
+.portal-list .li-main { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.portal-list .li-main strong { font-size: 14px; font-weight: 600; }
+.portal-list .li-main small { color: var(--muted); font-size: 12.5px; }
+.portal-list .li-amount { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.portal-empty { color: var(--muted); font-size: 13.5px; justify-content: center; }
+.leave-meter { margin-bottom: 8px; }
+.meter-nums { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; margin-bottom: 8px; }
+.meter-nums b { font-size: 22px; }
+.meter { height: 8px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
+.meter span { display: block; height: 100%; border-radius: inherit; background: var(--chart); }
+.meter.sm { height: 4px; margin-top: 6px; }
+.leave-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.portal-foot { text-align: center; color: var(--muted); font-size: 12.5px; margin: 4px 0 0; }
+.portal-error { display: flex; align-items: center; gap: 10px; color: var(--danger); font-weight: 600; }
+.skeleton-block { height: 76px; border-radius: 12px; background: var(--surface-3); animation: pulse 1.2s ease-in-out infinite alternate; }
+@keyframes pulse { to { opacity: .5; } }
+@media (max-width: 760px) {
+  .portal-hero { grid-template-columns: 1fr; }
+  .portal-grid { grid-template-columns: 1fr; }
+}

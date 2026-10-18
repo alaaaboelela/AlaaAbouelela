@@ -125,6 +125,12 @@ sudo tar xzf /var/backups/iqama/uploads-2026-10-18.tgz -C /opt/iqama && sudo cho
 sudo systemctl start iqama
 ```
 
+## بوابة الموظف
+
+حساب دخول للموظف نفسه بدور **موظف (بوابة الموظف)**، مربوط بملفه (من **المستخدمين ← مستخدم جديد**، أو زرار "حساب بوابة الموظف" في ملف الموظف).
+الموظف بيدخل من نفس صفحة الدخول ويفتح على `portal.html`: يشوف إقامته ومستنداته وسلفه وعهده ورصيد إجازته، ويقدّم طلب إجازة
+يوصل لقسم الإجازات "بانتظار الاعتماد" ويقدر يلغيه قبل المراجعة. حساب الموظف مقفول عليه أي قسم تاني، ولو ترك العمل البوابة بتتقفل.
+
 ## التحقق بخطوتين
 
 كل مستخدم يقدر يفعّله لحسابه من زرار القفل جنب اسمه: يمسح كود QR بتطبيق Google Authenticator أو Microsoft Authenticator،
@@ -194,6 +200,8 @@ sudo systemctl start iqama
 | GET | `/api/employees?q=` ، `/api/employees/:id/summary` | البحث عن موظف / ملفه الشامل |
 | GET | `/api/overview` | ملخص كل الأقسام للوحة المتابعة |
 | GET | `/api/backup` ، `/api/backup/download?files=0` | حالة النسخ الاحتياطي / تنزيل نسخة كاملة (مدير النظام) |
+| GET | `/api/portal` ، `/api/portal/photo` | بيانات الموظف في البوابة (لحساب الموظف بس) |
+| POST / DELETE | `/api/portal/leaves` ، `/api/portal/leaves/:id` | طلب إجازة من البوابة / إلغاء طلب معلّق |
 | POST | `/api/login/2fa` | الخطوة التانية للدخول (رمز التطبيق أو رمز احتياطي) |
 | GET / POST | `/api/me/2fa` ، `/setup` ، `/enable` ، `/disable` ، `/recovery` | إعداد التحقق بخطوتين للمستخدم الحالي |
 | POST | `/api/users/:id/2fa/reset` | مدير النظام يلغي التحقق بخطوتين لمستخدم |

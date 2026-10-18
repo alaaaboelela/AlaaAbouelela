@@ -14,6 +14,7 @@ const { router: reminders } = require('./reminders');
 const { router: costs } = require('./costs');
 const { router: payroll } = require('./payroll');
 const { router: twofactor } = require('./twofactor');
+const { router: portal } = require('./portal');
 const { can, permissionsFor, ROLES } = require('./permissions');
 
 // القسم المطلوب لكل مسار (null = متاح لأي مستخدم مسجّل)
@@ -43,7 +44,13 @@ function scopeBranch(req, res, next) {
   next();
 }
 
+// حساب الموظف: بوابته وحسابه بس، وأي مسار تاني ممنوع
+const EMPLOYEE_PATHS = /^\/(portal|me)(\/|$)/;
+
 function authorize(req, res, next) {
+  if (req.user.role === 'employee') {
+    return EMPLOYEE_PATHS.test(req.path) ? next() : res.status(403).json({ error: 'ليس لديك صلاحية لهذا الإجراء' });
+  }
   const section = sectionFor(req);
   if (!section) return next();
   const mode = req.method === 'GET' ? 'read' : 'write';
@@ -83,9 +90,11 @@ function createApp() {
     alertEmails: config.alertEmails,
     messaging: notify.status(),
     twoFactor: req.user.twoFactor,
+    employeeId: req.user.employeeId,
   }));
   app.use('/api', users);
   app.use('/api', twofactor);
+  app.use('/api', portal);
   app.use('/api', residencies);
   app.use('/api', modules);
   app.use('/api', reports);

@@ -117,7 +117,7 @@ async function login(req, res) {
   const username = String(req.body?.username || '').trim();
   const password = String(req.body?.password || '');
   const { rows } = await pool.query(
-    'SELECT id, username, password_hash, active, totp_secret IS NOT NULL AS two_factor FROM users WHERE username = $1',
+    'SELECT id, username, password_hash, active, role, totp_secret IS NOT NULL AS two_factor FROM users WHERE username = $1',
     [username],
   );
   const user = rows[0];
@@ -137,7 +137,8 @@ async function finishLogin(req, res, user, summary) {
   await pool.query('UPDATE users SET last_login = now() WHERE id = $1', [user.id]);
   audit.log({ user: { name: user.username }, ip: req.ip }, 'login', 'users', user.id, summary);
   setSessionCookie(res, createToken(user), config.sessionHours * 3600);
-  return res.json({ username: user.username });
+  // حساب الموظف يفتح على بوابة الموظف
+  return res.json({ username: user.username, home: user.role === 'employee' ? '/portal.html' : '/' });
 }
 
 // الخطوة التانية: رمز التطبيق أو رمز احتياطي (5 محاولات لكل تذكرة)
@@ -150,7 +151,7 @@ async function loginTwoFactor(req, res) {
   if (!ticket || fails >= 5) {
     return res.status(401).json({ error: 'انتهت مهلة التحقق، سجّل الدخول من جديد', expired: true });
   }
-  const { rows } = await pool.query('SELECT id, username, active FROM users WHERE id = $1', [ticket.uid]);
+  const { rows } = await pool.query('SELECT id, username, active, role FROM users WHERE id = $1', [ticket.uid]);
   const user = rows[0];
   if (!user?.active) return res.status(401).json({ error: 'انتهت مهلة التحقق، سجّل الدخول من جديد', expired: true });
   const result = await require('./twofactor').verifyUserCode(user.id, req.body?.code);
@@ -179,7 +180,7 @@ async function loadUser(id) {
   const hit = userCache.get(id);
   if (hit && hit.at > Date.now() - CACHE_MS) return hit.user;
   const { rows } = await pool.query(`SELECT u.id, u.username, u.full_name, u.role, u.active, u.branch_id, b.name AS branch_name,
-       u.totp_secret IS NOT NULL AS two_factor
+       u.totp_secret IS NOT NULL AS two_factor, u.employee_id
      FROM users u LEFT JOIN branches b ON b.id = u.branch_id WHERE u.id = $1`, [id]);
   const user = rows[0] || null;
   userCache.set(id, { user, at: Date.now() });
@@ -207,6 +208,7 @@ async function requireAuth(req, res, next) {
     branchId: user.branch_id ? String(user.branch_id) : null,
     branchName: user.branch_name || null,
     twoFactor: Boolean(user.two_factor),
+    employeeId: user.employee_id ? String(user.employee_id) : null,
   };
   return next();
 }

@@ -1149,6 +1149,10 @@ $('branchSelect').addEventListener('change', (e) => {
 (async () => {
   const me = await api('/api/me').catch(() => null);
   if (!me) return; // تم التحويل لصفحة الدخول
+  if (me.role === 'employee') {
+    location.replace('/portal.html');
+    return;
+  }
   state.me = me;
   await Modules.init();
   $('username').textContent = me.fullName || me.username;

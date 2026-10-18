@@ -321,3 +321,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_pending TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_last BIGINT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS recovery_codes TEXT;
+
+-- بوابة الموظف: حساب دخول مربوط بملف موظف واحد
+ALTER TABLE users ADD COLUMN IF NOT EXISTS employee_id BIGINT REFERENCES residencies (id) ON DELETE SET NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS users_employee_idx ON users (employee_id) WHERE employee_id IS NOT NULL;

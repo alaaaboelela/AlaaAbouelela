@@ -698,7 +698,8 @@ const Modules = (() => {
             <small>${esc(fmtGregorian(r.leftDate, 'short'))} · ${esc(r.leftReason)}</small></div>` : ''}
           ${canEdit ? `<div class="employment-actions">${r.employment === 'left'
     ? `<button class="btn btn-ghost btn-sm" type="button" data-employment="active">${icon('check', 'icon-sm')}إعادة للعمل</button>`
-    : `<button class="btn btn-ghost btn-sm" type="button" data-employment="left">${icon('logout', 'icon-sm')}إنهاء الخدمة</button>`}</div>` : ''}
+    : `<button class="btn btn-ghost btn-sm" type="button" data-employment="left">${icon('logout', 'icon-sm')}إنهاء الخدمة</button>`}
+            ${r.employment !== 'left' && can('users', 'write') ? `<button class="btn btn-ghost btn-sm" type="button" data-portal-account>${icon('user', 'icon-sm')}حساب بوابة الموظف</button>` : ''}</div>` : ''}
         </div>
       </div>
       <div class="summary-strip">
@@ -742,6 +743,9 @@ const Modules = (() => {
       } catch (err) {
         toast(err.message, 'error');
       }
+    });
+    $('dBody').querySelector('[data-portal-account]')?.addEventListener('click', () => {
+      Admin.openUser(null, { role: 'employee', employee_id: r.id, employee_name: r.name, full_name: r.name });
     });
     $('dBody').querySelector('[data-employment="left"]')?.addEventListener('click', async () => {
       employmentReasons ||= await api('/api/employment/reasons');

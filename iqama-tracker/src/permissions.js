@@ -25,6 +25,8 @@ const ROLES = {
   hr: { label: 'موارد بشرية', write: HR, read: DATA },
   accountant: { label: 'محاسب', write: ['advances', 'contracts', 'custody', 'cars'], read: DATA },
   viewer: { label: 'مشاهد فقط', write: [], read: DATA },
+  // حساب الموظف نفسه: بوابة الموظف بس (بياناته وطلب إجازة)، من غير أي قسم
+  employee: { label: 'موظف (بوابة الموظف)', write: [], read: [] },
 };
 
 function permissionsFor(role) {

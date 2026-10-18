@@ -25,7 +25,8 @@ const Admin = (() => {
         <td><div class="person"><span class="initials">${esc((u.full_name || u.username).slice(0, 2))}</span>
           <div><strong>${esc(u.full_name || u.username)}</strong><small class="mono">${esc(u.username)}</small></div></div></td>
         <td><span class="pill ${u.role === 'admin' ? 'valid' : 'neutral'}">${esc(u.roleLabel)}</span>
-          ${Branch.list.length ? `<span class="sub">${u.branch_name ? esc(u.branch_name) : 'كل الفروع'}</span>` : ''}</td>
+          ${u.role === 'employee' ? `<span class="sub">${u.employee_name ? esc(u.employee_name) : '<span class="text-expired">غير مربوط بملف</span>'}</span>`
+    : Branch.list.length ? `<span class="sub">${u.branch_name ? esc(u.branch_name) : 'كل الفروع'}</span>` : ''}</td>
         <td>${u.active ? `<span class="pill valid">${icon('check', 'icon-sm')}فعّال</span>` : '<span class="pill expired">موقوف</span>'}
           ${u.two_factor ? `<span class="sub">${icon('lock', 'icon-sm')} تحقق بخطوتين</span>` : ''}</td>
         <td>${esc(fmtDateTime(u.last_login))}</td>
@@ -41,7 +42,8 @@ const Admin = (() => {
       <tbody>${sections.map(([k, label]) => `<tr><td>${esc(label)}</td>${Object.values(r.roles).map((x) => `<td>${mark[x.permissions[k]]}</td>`).join('')}</tr>`).join('')}</tbody>`;
   }
 
-  async function openUser(u) {
+  // preset: فتح حساب جديد لموظف من ملفه (بوابة الموظف)
+  async function openUser(u, preset = null) {
     const r = await loadRoles();
     const f = $('userForm');
     f.reset();
@@ -50,8 +52,11 @@ const Admin = (() => {
     f.elements.id.value = u?.id || '';
     f.elements.username.value = u?.username || '';
     f.elements.username.disabled = Boolean(u);
-    f.elements.full_name.value = u?.full_name || '';
-    f.elements.role.value = u?.role || 'hr';
+    f.elements.role.value = u?.role || preset?.role || 'hr';
+    f.elements.full_name.value = u?.full_name || preset?.full_name || '';
+    $('userEmployeeField').innerHTML = Modules.fieldHtml({ name: 'employee_id', label: 'ملف الموظف', type: 'employee', required: true, wide: true },
+      u?.employee_id || preset?.employee_id || '', u?.employee_name || preset?.employee_name || '');
+    Modules.bindFormExtras($('userEmployeeField'));
     $('userBranchField').hidden = !Branch.list.length;
     $('userBranch').innerHTML = branchOptions(u?.branch_id, 'كل الفروع');
     f.elements.active.checked = u ? u.active : true;
@@ -65,6 +70,13 @@ const Admin = (() => {
 
   function updateRoleHint() {
     if (!roles) return;
+    const employee = $('userRole').value === 'employee';
+    $('userEmployeeField').hidden = !employee;
+    $('userBranchField').hidden = employee || !Branch.list.length;
+    if (employee) {
+      $('roleHint').textContent = 'يدخل على بوابة الموظف بس: يشوف ملفه ومستنداته وسلفه، ويطلب إجازة.';
+      return;
+    }
     const p = roles.roles[$('userRole').value]?.permissions || {};
     const write = Object.entries(p).filter(([, v]) => v === 'write').map(([k]) => roles.sections[k]);
     const scope = $('userBranch').value ? ` — ويرى بيانات ${branchName($('userBranch').value)} فقط` : '';
@@ -84,6 +96,7 @@ const Admin = (() => {
       password: f.elements.password.value,
       active: f.elements.active.checked,
       branch_id: f.elements.branch_id.value,
+      employee_id: f.elements.employee_id?.value || '',
     };
     try {
       await api(id ? `/api/users/${id}` : '/api/users', { method: id ? 'PUT' : 'POST', body: JSON.stringify(body) });

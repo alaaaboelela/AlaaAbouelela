@@ -20,16 +20,31 @@ function validateUser(body, { isNew }) {
   const role = str(body.role);
   const password = String(body.password || '');
   const active = body.active === undefined ? true : body.active === true || body.active === 'true';
-  const branchId = /^\d{1,18}$/.test(str(body.branch_id)) ? str(body.branch_id) : null;
+  // حساب الموظف مربوط بملفه، ومالوش فرع (بيشوف ملفه بس)
+  const employeeId = role === 'employee' && /^\d{1,18}$/.test(str(body.employee_id)) ? str(body.employee_id) : null;
+  const branchId = role !== 'employee' && /^\d{1,18}$/.test(str(body.branch_id)) ? str(body.branch_id) : null;
+  if (role === 'employee' && !employeeId) errors.push('اختر ملف الموظف المربوط بالحساب');
   if (isNew && !/^[a-z0-9._-]{3,30}$/.test(username)) {
     errors.push('اسم المستخدم من 3 إلى 30 حرفًا إنجليزيًا أو أرقام (بدون مسافات)');
   }
   if (!ROLES[role]) errors.push('اختر الدور');
   if ((isNew || password) && password.length < 8) errors.push('كلمة المرور 8 أحرف على الأقل');
-  return { errors, value: { username, fullName, role, password, active, branchId } };
+  return { errors, value: { username, fullName, role, password, active, branchId, employeeId } };
 }
 
-const userColumns = 'id, username, full_name, role, active, branch_id, last_login, created_at, totp_secret IS NOT NULL AS two_factor';
+const userColumns = `id, username, full_name, role, active, branch_id, last_login, created_at, totp_secret IS NOT NULL AS two_factor,
+  employee_id, (SELECT name FROM residencies e WHERE e.id = users.employee_id) AS employee_name`;
+
+// خطأ قاعدة البيانات لحفظ مستخدم ← رسالة واضحة
+function userDbError(err, res) {
+  if (err.code === '23505') {
+    return res.status(409).json({ error: err.constraint === 'users_employee_idx' ? 'الموظف ده عنده حساب بالفعل' : 'اسم المستخدم مستخدم من قبل' });
+  }
+  if (err.code === '23503') {
+    return res.status(400).json({ error: String(err.constraint).includes('employee') ? 'ملف الموظف غير موجود' : 'الفرع المختار غير موجود' });
+  }
+  throw err;
+}
 
 async function activeAdmins(exceptId) {
   const { rows } = await pool.query(
@@ -65,16 +80,14 @@ router.post('/users', adminOnly('users'), async (req, res) => {
   if (errors.length) return res.status(400).json({ error: errors.join('، ') });
   try {
     const { rows } = await pool.query(
-      `INSERT INTO users (username, full_name, role, active, password_hash, branch_id) VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO users (username, full_name, role, active, password_hash, branch_id, employee_id) VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING ${userColumns}`,
-      [value.username, value.fullName, value.role, value.active, hashPassword(value.password), value.branchId],
+      [value.username, value.fullName, value.role, value.active, hashPassword(value.password), value.branchId, value.employeeId],
     );
-    audit.log(req, 'create', 'users', rows[0].id, `مستخدم: ${value.username} (${ROLES[value.role].label})`);
+    audit.log(req, 'create', 'users', rows[0].id, `مستخدم: ${value.username} (${ROLES[value.role].label}${rows[0].employee_name ? `: ${rows[0].employee_name}` : ''})`);
     return res.status(201).json(rows[0]);
   } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'اسم المستخدم مستخدم من قبل' });
-    if (err.code === '23503') return res.status(400).json({ error: 'الفرع المختار غير موجود' });
-    throw err;
+    return userDbError(err, res);
   }
 });
 
@@ -96,17 +109,16 @@ router.put('/users/:id', adminOnly('users'), async (req, res) => {
   try {
     ({ rows } = await pool.query(
       `UPDATE users SET full_name = $2, role = $3, active = $4,
-         password_hash = COALESCE($5, password_hash), branch_id = $6
+         password_hash = COALESCE($5, password_hash), branch_id = $6, employee_id = $7
        WHERE id = $1 RETURNING ${userColumns}`,
-      [id, value.fullName, value.role, value.active, value.password ? hashPassword(value.password) : null, value.branchId],
+      [id, value.fullName, value.role, value.active, value.password ? hashPassword(value.password) : null, value.branchId, value.employeeId],
     ));
   } catch (err) {
-    if (err.code === '23503') return res.status(400).json({ error: 'الفرع المختار غير موجود' });
-    throw err;
+    return userDbError(err, res);
   }
   forgetUser(id);
-  const changes = audit.diff(before, { full_name: value.fullName, role: value.role, active: value.active, branch_id: value.branchId },
-    { full_name: 'الاسم', role: 'الدور', active: 'فعّال', branch_id: 'الفرع' });
+  const changes = audit.diff(before, { full_name: value.fullName, role: value.role, active: value.active, branch_id: value.branchId, employee_name: rows[0].employee_name },
+    { full_name: 'الاسم', role: 'الدور', active: 'فعّال', branch_id: 'الفرع', employee_name: 'ملف الموظف' });
   if (value.password) changes['كلمة المرور'] = ['***', 'تم تغييرها'];
   audit.log(req, 'update', 'users', id, `مستخدم: ${before.username}`, changes);
   return res.json(rows[0]);

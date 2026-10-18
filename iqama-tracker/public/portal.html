@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>بوابة الموظف</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0b6b61">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" href="/icons/favicon-32.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="style.css">
+  <script src="theme.js"></script>
+</head>
+<body class="portal">
+  <header class="portal-top">
+    <div class="portal-brand">
+      <span class="brand-mark"><svg class="icon"><use href="icons.svg#i-logo"/></svg></span>
+      <div><strong id="pCompany">بوابة الموظف</strong><small>بوابة الموظف</small></div>
+    </div>
+    <div class="portal-actions">
+      <button class="icon-btn" id="pTheme" type="button" aria-label="تبديل الوضع الليلي" title="الوضع الليلي"><svg class="icon"><use id="pThemeIcon" href="icons.svg#i-moon"/></svg></button>
+      <button class="icon-btn" id="pPwd" type="button" aria-label="تغيير كلمة المرور" title="تغيير كلمة المرور"><svg class="icon"><use href="icons.svg#i-key"/></svg></button>
+      <button class="icon-btn" id="pLogout" type="button" aria-label="تسجيل الخروج" title="تسجيل الخروج"><svg class="icon"><use href="icons.svg#i-logout"/></svg></button>
+    </div>
+  </header>
+
+  <main class="portal-main" id="pMain" aria-busy="true">
+    <section class="card portal-hero" id="pHero">
+      <div class="skeleton-block"></div>
+    </section>
+
+    <div class="portal-grid">
+      <section class="card" id="pLeave">
+        <div class="card-head">
+          <div><h2 class="card-title">إجازاتي</h2><p class="card-sub" id="pLeaveSub">&nbsp;</p></div>
+          <button class="btn btn-primary btn-sm" id="pLeaveBtn" type="button"><svg class="icon"><use href="icons.svg#i-plus"/></svg>طلب إجازة</button>
+        </div>
+        <div class="card-body">
+          <div class="leave-meter" id="pLeaveMeter"></div>
+          <ul class="portal-list" id="pLeaveList"></ul>
+        </div>
+      </section>
+
+      <section class="card" id="pDocs">
+        <div class="card-head"><div><h2 class="card-title">مستنداتي</h2><p class="card-sub">الجواز ورخصة العمل والتأمين وغيرها</p></div></div>
+        <div class="card-body"><ul class="portal-list" id="pDocsList"></ul></div>
+      </section>
+
+      <section class="card" id="pAdvances">
+        <div class="card-head"><div><h2 class="card-title">سلفي</h2><p class="card-sub" id="pAdvSub">&nbsp;</p></div></div>
+        <div class="card-body"><ul class="portal-list" id="pAdvList"></ul></div>
+      </section>
+
+      <section class="card" id="pCustody">
+        <div class="card-head"><div><h2 class="card-title">العهد اللي معايا</h2><p class="card-sub">الأجهزة والأدوات المسلّمة لك</p></div></div>
+        <div class="card-body"><ul class="portal-list" id="pCustodyList"></ul></div>
+      </section>
+
+      <section class="card" id="pVisas" hidden>
+        <div class="card-head"><div><h2 class="card-title">تأشيرات الخروج والعودة</h2><p class="card-sub">آخر رحلاتك ومواعيد العودة</p></div></div>
+        <div class="card-body"><ul class="portal-list" id="pVisasList"></ul></div>
+      </section>
+    </div>
+    <p class="portal-foot">لو فيه بيان غلط في ملفك، تواصل مع شؤون الموظفين لتعديله.</p>
+  </main>
+
+  <dialog id="leaveModal" aria-labelledby="leaveTitle" class="narrow">
+    <form id="leaveForm" novalidate>
+      <div class="modal-head">
+        <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-sun-palm"/></svg></span>
+        <h2 id="leaveTitle">طلب إجازة</h2>
+        <button class="icon-btn" type="button" data-close aria-label="إغلاق"><svg class="icon"><use href="icons.svg#i-x"/></svg></button>
+      </div>
+      <div class="modal-body single">
+        <div class="form-error" id="leaveError" role="alert" hidden><svg class="icon"><use href="icons.svg#i-alert"/></svg><span></span></div>
+        <label class="field"><span>نوع الإجازة <b class="req">*</b></span><select class="input" name="type" id="leaveType"></select></label>
+        <div class="leave-dates">
+          <label class="field"><span>من <b class="req">*</b></span><input class="input" type="date" name="start"></label>
+          <label class="field"><span>إلى <b class="req">*</b></span><input class="input" type="date" name="end"></label>
+        </div>
+        <p class="card-sub" id="leaveDays">&nbsp;</p>
+        <label class="field"><span>السبب / ملاحظات</span><textarea class="input" name="reason" rows="2" maxlength="500"></textarea></label>
+        <p class="card-sub">الطلب يوصل لشؤون الموظفين "بانتظار الاعتماد"، وتقدر تلغيه طول ما لسه ما اتراجعش.</p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" type="button" data-close>إلغاء</button>
+        <button class="btn btn-primary" type="submit">إرسال الطلب</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="pwdModal" aria-labelledby="pwdTitle" class="narrow">
+    <form id="pwdForm" novalidate>
+      <div class="modal-head">
+        <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-key"/></svg></span>
+        <h2 id="pwdTitle">تغيير كلمة المرور</h2>
+        <button class="icon-btn" type="button" data-close aria-label="إغلاق"><svg class="icon"><use href="icons.svg#i-x"/></svg></button>
+      </div>
+      <div class="modal-body single">
+        <div class="form-error" id="pwdError" role="alert" hidden><svg class="icon"><use href="icons.svg#i-alert"/></svg><span></span></div>
+        <label class="field"><span>كلمة المرور الحالية</span><input class="input" name="current" type="password" autocomplete="current-password"></label>
+        <label class="field"><span>كلمة المرور الجديدة</span><input class="input" name="next" type="password" autocomplete="new-password" placeholder="8 أحرف على الأقل"></label>
+        <label class="field"><span>تأكيد كلمة المرور الجديدة</span><input class="input" name="confirm" type="password" autocomplete="new-password"></label>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" type="button" data-close>إلغاء</button>
+        <button class="btn btn-primary" type="submit">حفظ</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+  <script src="hijri.js"></script>
+  <script src="portal.js"></script>
+</body>
+</html>
