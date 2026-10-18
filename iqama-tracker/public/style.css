@@ -1551,3 +1551,22 @@ dialog.wide { width: min(980px, calc(100vw - 32px)); }
   #payrollModal .payroll-month { order: 3; max-width: none; flex-basis: 100%; }
   .payroll-body { padding: 14px 16px; }
 }
+
+/* خطوة رمز التحقق في صفحة الدخول */
+.otp-step .float-field input { letter-spacing: .3em; font-size: 18px; text-align: center; }
+.otp-hint { font-size: 12.5px; color: var(--text-2); line-height: 1.7; margin: -6px 0 10px; }
+.link-btn { background: none; border: 0; padding: 0; color: var(--brand); font-size: 13px; font-weight: 600; cursor: pointer; margin-bottom: 14px; }
+.link-btn:hover { text-decoration: underline; }
+
+/* التحقق بخطوتين */
+#tfaBody { display: grid; gap: 14px; font-size: 14px; line-height: 1.7; }
+#tfaBody p { margin: 0; color: var(--text-2); }
+.tfa-steps { margin: 0; padding-inline-start: 20px; color: var(--text-2); display: grid; gap: 4px; }
+.tfa-qr { display: grid; place-items: center; gap: 8px; padding: 14px; background: #fff; border: 1px solid var(--border); border-radius: 16px; }
+.tfa-qr svg { width: 200px; height: 200px; }
+.tfa-secret { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; letter-spacing: .08em; color: #1e293b; direction: ltr; text-align: center; word-break: break-all; }
+.tfa-code { letter-spacing: .3em; font-size: 20px; text-align: center; direction: ltr; }
+.tfa-codes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 14px; background: var(--surface-2); border: 1px dashed var(--border-strong); border-radius: 12px;
+  font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 15px; direction: ltr; text-align: center; }
+.tfa-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tfa-admin { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: 13px; color: var(--text-2); }

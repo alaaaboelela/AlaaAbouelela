@@ -315,3 +315,9 @@ ALTER TABLE residencies ADD COLUMN IF NOT EXISTS renewal_cost NUMERIC(12, 2);
 -- خصم أقساط السلف من الرواتب: الدفعة المسجّلة من كشف شهر معيّن (مرة واحدة لكل سلفة في الشهر)
 ALTER TABLE advance_payments ADD COLUMN IF NOT EXISTS payroll_month TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS advance_payments_payroll_idx ON advance_payments (advance_id, payroll_month) WHERE payroll_month IS NOT NULL;
+
+-- التحقق بخطوتين (TOTP) والرموز الاحتياطية (بصمات فقط)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_pending TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_last BIGINT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS recovery_codes TEXT;

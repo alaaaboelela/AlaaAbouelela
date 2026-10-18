@@ -82,21 +82,21 @@
           منصة الإقامات
         </div>
         <div>
-          <h1>مرحبًا بعودتك 👋</h1>
-          <p class="lead">سجّل الدخول للوصول إلى لوحة متابعة الإقامات</p>
+          <h1 id="loginTitle">مرحبًا بعودتك 👋</h1>
+          <p class="lead" id="loginLead">سجّل الدخول للوصول إلى لوحة متابعة الإقامات</p>
         </div>
 
         <div class="login-error" id="error" role="alert" hidden>
           <svg class="icon"><use href="icons.svg#i-alert"/></svg><span id="errorText"></span>
         </div>
 
-        <div class="float-field">
+        <div class="float-field cred">
           <input id="username" name="username" autocomplete="username" placeholder=" " required>
           <label for="username">اسم المستخدم</label>
           <svg class="icon"><use href="icons.svg#i-user"/></svg>
         </div>
 
-        <div class="float-field">
+        <div class="float-field cred">
           <input id="password" name="password" type="password" autocomplete="current-password" placeholder=" " required>
           <label for="password">كلمة المرور</label>
           <svg class="icon"><use href="icons.svg#i-lock"/></svg>
@@ -106,6 +106,16 @@
         </div>
 
         <p class="caps" id="caps" hidden><svg class="icon-sm"><use href="icons.svg#i-alert"/></svg>زر Caps Lock مفعّل</p>
+
+        <div class="otp-step" id="otpStep" hidden>
+          <div class="float-field">
+            <input id="otp" name="otp" inputmode="numeric" autocomplete="one-time-code" placeholder=" " maxlength="9" dir="ltr">
+            <label for="otp">رمز التحقق من التطبيق</label>
+            <svg class="icon"><use href="icons.svg#i-shield-user"/></svg>
+          </div>
+          <p class="otp-hint">افتح تطبيق التحقق على جوالك واكتب الرمز المكوّن من 6 أرقام. لو الجوال مش معاك، اكتب أحد الرموز الاحتياطية.</p>
+          <button class="link-btn" id="otpBack" type="button">رجوع لتسجيل الدخول</button>
+        </div>
 
         <button class="btn btn-primary login-submit" id="submit" type="submit">
           <span id="submitLabel">تسجيل الدخول</span>

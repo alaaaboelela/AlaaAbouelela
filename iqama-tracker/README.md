@@ -125,6 +125,12 @@ sudo tar xzf /var/backups/iqama/uploads-2026-10-18.tgz -C /opt/iqama && sudo cho
 sudo systemctl start iqama
 ```
 
+## التحقق بخطوتين
+
+كل مستخدم يقدر يفعّله لحسابه من زرار القفل جنب اسمه: يمسح كود QR بتطبيق Google Authenticator أو Microsoft Authenticator،
+وبعدها الدخول بيطلب رمز من 6 أرقام بعد كلمة المرور، ومعاه 10 رموز احتياطية لو الجوال مش موجود.
+لو حد ضاع جواله: مدير النظام يلغيه من **المستخدمين ← تعديل**، أو من السيرفر `npm run create-user -- <اسم المستخدم> <كلمة مرور جديدة>`.
+
 ## الاستيراد من Excel
 
 احفظي الشيت كـ **CSV UTF-8** وخلي أول صف عناوين. الأعمدة المقبولة:
@@ -188,6 +194,9 @@ sudo systemctl start iqama
 | GET | `/api/employees?q=` ، `/api/employees/:id/summary` | البحث عن موظف / ملفه الشامل |
 | GET | `/api/overview` | ملخص كل الأقسام للوحة المتابعة |
 | GET | `/api/backup` ، `/api/backup/download?files=0` | حالة النسخ الاحتياطي / تنزيل نسخة كاملة (مدير النظام) |
+| POST | `/api/login/2fa` | الخطوة التانية للدخول (رمز التطبيق أو رمز احتياطي) |
+| GET / POST | `/api/me/2fa` ، `/setup` ، `/enable` ، `/disable` ، `/recovery` | إعداد التحقق بخطوتين للمستخدم الحالي |
+| POST | `/api/users/:id/2fa/reset` | مدير النظام يلغي التحقق بخطوتين لمستخدم |
 | GET / PUT | `/api/costs` | بنود تكلفة تجديد الإقامة الافتراضية (التعديل لمدير النظام) |
 | GET | `/api/payroll?month=2026-10` ، `/api/payroll/export.xlsx` | كشف خصم أقساط السلف من رواتب الشهر |
 | POST / DELETE | `/api/payroll/record` | تسجيل أقساط الكشف كدفعات / إلغاء تسجيل الشهر |

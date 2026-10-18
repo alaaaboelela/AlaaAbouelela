@@ -50,6 +50,31 @@ function readToken(token) {
   }
 }
 
+// تذكرة مؤقتة بين كلمة المرور ورمز التحقق (موقّعة بمفتاح مختلف فما تنفعش كجلسة)
+const TICKET_MS = 5 * 60 * 1000;
+const ticketFails = new Map();
+
+function createTicket(user) {
+  const payload = Buffer.from(JSON.stringify({
+    uid: user.id, n: crypto.randomBytes(9).toString('base64url'), exp: Date.now() + TICKET_MS,
+  })).toString('base64url');
+  return `${payload}.${sign(`2fa.${payload}`)}`;
+}
+
+function readTicket(ticket) {
+  const [payload, sig] = String(ticket || '').split('.');
+  if (!payload || !sig) return null;
+  const expected = Buffer.from(sign(`2fa.${payload}`));
+  const given = Buffer.from(sig);
+  if (expected.length !== given.length || !crypto.timingSafeEqual(expected, given)) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString());
+    return data.exp > Date.now() ? data : null;
+  } catch {
+    return null;
+  }
+}
+
 function getCookie(req, name) {
   const header = req.headers.cookie || '';
   for (const part of header.split(';')) {
@@ -92,7 +117,7 @@ async function login(req, res) {
   const username = String(req.body?.username || '').trim();
   const password = String(req.body?.password || '');
   const { rows } = await pool.query(
-    'SELECT id, username, password_hash, active FROM users WHERE username = $1',
+    'SELECT id, username, password_hash, active, totp_secret IS NOT NULL AS two_factor FROM users WHERE username = $1',
     [username],
   );
   const user = rows[0];
@@ -102,11 +127,43 @@ async function login(req, res) {
     return res.status(401).json({ error: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
   }
   if (!user.active) return res.status(403).json({ error: 'هذا الحساب موقوف، تواصل مع مدير النظام' });
+  // الحساب عليه تحقق بخطوتين: لسه محتاج رمز التطبيق قبل الجلسة
+  if (user.two_factor) return res.json({ twoFactor: true, ticket: createTicket(user) });
+  return finishLogin(req, res, user, 'تسجيل دخول');
+}
+
+async function finishLogin(req, res, user, summary) {
   attempts.delete(req.ip);
   await pool.query('UPDATE users SET last_login = now() WHERE id = $1', [user.id]);
-  audit.log({ user: { name: user.username }, ip: req.ip }, 'login', 'users', user.id, 'تسجيل دخول');
+  audit.log({ user: { name: user.username }, ip: req.ip }, 'login', 'users', user.id, summary);
   setSessionCookie(res, createToken(user), config.sessionHours * 3600);
   return res.json({ username: user.username });
+}
+
+// الخطوة التانية: رمز التطبيق أو رمز احتياطي (5 محاولات لكل تذكرة)
+async function loginTwoFactor(req, res) {
+  if (tooManyAttempts(req.ip)) {
+    return res.status(429).json({ error: 'محاولات كثيرة، حاول بعد ربع ساعة' });
+  }
+  const ticket = readTicket(req.body?.ticket);
+  const fails = ticket ? ticketFails.get(ticket.n)?.count || 0 : 0;
+  if (!ticket || fails >= 5) {
+    return res.status(401).json({ error: 'انتهت مهلة التحقق، سجّل الدخول من جديد', expired: true });
+  }
+  const { rows } = await pool.query('SELECT id, username, active FROM users WHERE id = $1', [ticket.uid]);
+  const user = rows[0];
+  if (!user?.active) return res.status(401).json({ error: 'انتهت مهلة التحقق، سجّل الدخول من جديد', expired: true });
+  const result = await require('./twofactor').verifyUserCode(user.id, req.body?.code);
+  if (!result.ok) {
+    for (const [k, v] of ticketFails) if (v.exp < Date.now()) ticketFails.delete(k);
+    ticketFails.set(ticket.n, { count: fails + 1, exp: ticket.exp });
+    recordFailure(req.ip);
+    audit.log({ auditUser: user.username, ip: req.ip }, 'login_failed', 'users', user.id, 'رمز تحقق خاطئ');
+    return res.status(401).json({ error: 'رمز التحقق غير صحيح', left: 4 - fails });
+  }
+  ticketFails.set(ticket.n, { count: 5, exp: ticket.exp }); // التذكرة ما تتستخدمش تاني
+  return finishLogin(req, res, user, result.method === 'recovery'
+    ? `تسجيل دخول برمز احتياطي (باقي ${result.left})` : 'تسجيل دخول بالتحقق بخطوتين');
 }
 
 function logout(req, res) {
@@ -121,7 +178,8 @@ const CACHE_MS = 10 * 1000;
 async function loadUser(id) {
   const hit = userCache.get(id);
   if (hit && hit.at > Date.now() - CACHE_MS) return hit.user;
-  const { rows } = await pool.query(`SELECT u.id, u.username, u.full_name, u.role, u.active, u.branch_id, b.name AS branch_name
+  const { rows } = await pool.query(`SELECT u.id, u.username, u.full_name, u.role, u.active, u.branch_id, b.name AS branch_name,
+       u.totp_secret IS NOT NULL AS two_factor
      FROM users u LEFT JOIN branches b ON b.id = u.branch_id WHERE u.id = $1`, [id]);
   const user = rows[0] || null;
   userCache.set(id, { user, at: Date.now() });
@@ -148,8 +206,9 @@ async function requireAuth(req, res, next) {
     role: user.role,
     branchId: user.branch_id ? String(user.branch_id) : null,
     branchName: user.branch_name || null,
+    twoFactor: Boolean(user.two_factor),
   };
   return next();
 }
 
-module.exports = { hashPassword, verifyPassword, createToken, readToken, login, logout, requireAuth, forgetUser };
+module.exports = { hashPassword, verifyPassword, createToken, readToken, login, loginTwoFactor, logout, requireAuth, forgetUser };

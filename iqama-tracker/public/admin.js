@@ -26,7 +26,8 @@ const Admin = (() => {
           <div><strong>${esc(u.full_name || u.username)}</strong><small class="mono">${esc(u.username)}</small></div></div></td>
         <td><span class="pill ${u.role === 'admin' ? 'valid' : 'neutral'}">${esc(u.roleLabel)}</span>
           ${Branch.list.length ? `<span class="sub">${u.branch_name ? esc(u.branch_name) : 'كل الفروع'}</span>` : ''}</td>
-        <td>${u.active ? `<span class="pill valid">${icon('check', 'icon-sm')}فعّال</span>` : '<span class="pill expired">موقوف</span>'}</td>
+        <td>${u.active ? `<span class="pill valid">${icon('check', 'icon-sm')}فعّال</span>` : '<span class="pill expired">موقوف</span>'}
+          ${u.two_factor ? `<span class="sub">${icon('lock', 'icon-sm')} تحقق بخطوتين</span>` : ''}</td>
         <td>${esc(fmtDateTime(u.last_login))}</td>
         <td><div class="row-actions">
           <button class="icon-btn" data-uedit="${u.id}" title="تعديل">${icon('edit')}</button>
@@ -56,6 +57,8 @@ const Admin = (() => {
     f.elements.active.checked = u ? u.active : true;
     $('userPwdLabel').innerHTML = u ? 'كلمة مرور جديدة <small class="muted">(اتركيها فارغة للإبقاء على الحالية)</small>' : 'كلمة المرور <b class="req">*</b>';
     $('userModalTitle').textContent = u ? `تعديل المستخدم ${u.username}` : 'مستخدم جديد';
+    $('userTfa').hidden = !u?.two_factor;
+    $('userTfaReset').dataset.id = u?.id || '';
     updateRoleHint();
     openModal($('userModal'));
   }
@@ -165,6 +168,118 @@ const Admin = (() => {
   }
   $('auditPrev').addEventListener('click', () => { audit.page -= 1; showAudit(); });
   $('auditNext').addEventListener('click', () => { audit.page += 1; showAudit(); });
+
+  $('userTfaReset').addEventListener('click', async () => {
+    const u = users.find((x) => x.id === $('userTfaReset').dataset.id);
+    if (!u || !(await confirmDialog(`هيقدر ${u.full_name || u.username} يدخل بكلمة المرور بس، ويفعّل التحقق بخطوتين تاني من حسابه بالجوال الجديد.`,
+      { title: 'إلغاء التحقق بخطوتين؟', ok: 'إلغاء التحقق' }))) return;
+    try {
+      await api(`/api/users/${u.id}/2fa/reset`, { method: 'POST' });
+      toast('تم إلغاء التحقق بخطوتين للمستخدم');
+      $('userTfa').hidden = true;
+      showUsers();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  });
+
+  // ---------- التحقق بخطوتين للمستخدم الحالي ----------
+
+  const tfa = { step: 'status', data: null };
+  const pwdField = (label = 'كلمة المرور الحالية') => `<label class="field"><span>${label}</span>
+    <input class="input" name="password" type="password" autocomplete="current-password"></label>`;
+  const codeField = (label = 'الرمز من التطبيق') => `<label class="field"><span>${label}</span>
+    <input class="input tfa-code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="9" placeholder="000000"></label>`;
+  const codesHtml = (codes) => `<p>احفظ الرموز دي في مكان آمن (اطبعها أو صوّرها). كل رمز يُستخدم مرة واحدة للدخول لو الجوال مش معاك.</p>
+    <div class="tfa-codes">${codes.map((c) => `<span>${esc(c)}</span>`).join('')}</div>`;
+
+  function renderTfa() {
+    const d = tfa.data || {};
+    $('tfaError').hidden = true;
+    const views = {
+      status: () => (d.enabled
+        ? [`<div class="tfa-status"><span class="pill valid">${icon('check', 'icon-sm')}مفعّل</span><span>متبقي ${fmt(d.recoveryLeft)} من 10 رموز احتياطية</span></div>
+            <p>عند الدخول بيُطلب منك رمز من تطبيق التحقق على جوالك بعد كلمة المرور.</p>`,
+          `<button class="btn btn-ghost danger-text" type="button" data-tfa="disable">إيقاف</button>
+           <button class="btn btn-ghost" type="button" data-tfa="regen">رموز احتياطية جديدة</button>`]
+        : [`<p>حماية إضافية لحسابك: حتى لو حد عرف كلمة المرور، مش هيقدر يدخل من غير الرمز اللي على جوالك.</p>
+            <ol class="tfa-steps"><li>نزّل تطبيق <b>Google Authenticator</b> أو <b>Microsoft Authenticator</b> على جوالك.</li>
+            <li>امسح كود QR اللي هيظهر.</li><li>اكتب الرمز المكوّن من 6 أرقام للتأكيد.</li></ol>`,
+          `<button class="btn btn-ghost" type="button" data-close>إغلاق</button>
+           <button class="btn btn-primary" type="button" data-tfa="password">تفعيل</button>`]),
+      password: () => [pwdField(), `<button class="btn btn-ghost" type="button" data-tfa="status">رجوع</button>
+        <button class="btn btn-primary" type="submit">متابعة</button>`],
+      scan: () => [`<div class="tfa-qr">${d.qr}<div class="tfa-secret">${esc(d.secret)}</div></div>
+          <p>امسح الكود من التطبيق، أو أضف الحساب يدويًا بالمفتاح المكتوب تحته.</p>${codeField()}`,
+        `<button class="btn btn-ghost" type="button" data-tfa="status">إلغاء</button><button class="btn btn-primary" type="submit">تفعيل</button>`],
+      codes: () => [codesHtml(d.codes), `<button class="btn btn-ghost" type="button" data-tfa="download">تنزيل كملف</button>
+        <button class="btn btn-primary" type="button" data-tfa="status">حفظتها</button>`],
+      disable: () => [`<p>لإيقاف التحقق بخطوتين اكتب كلمة المرور ورمز من التطبيق (أو رمز احتياطي).</p>${pwdField()}${codeField('الرمز من التطبيق أو رمز احتياطي')}`,
+        `<button class="btn btn-ghost" type="button" data-tfa="status">رجوع</button><button class="btn btn-danger" type="submit">إيقاف</button>`],
+      regen: () => [`<p>الرموز الاحتياطية القديمة هتتلغي وتتعمل 10 رموز جديدة.</p>${pwdField()}`,
+        `<button class="btn btn-ghost" type="button" data-tfa="status">رجوع</button><button class="btn btn-primary" type="submit">إنشاء</button>`],
+    };
+    const [body, foot] = views[tfa.step]();
+    $('tfaBody').innerHTML = body;
+    $('tfaFoot').innerHTML = foot;
+    $('tfaForm').querySelector('input')?.focus();
+  }
+
+  async function goTfa(step) {
+    if (step === 'status') tfa.data = await api('/api/me/2fa');
+    tfa.step = step;
+    renderTfa();
+  }
+
+  $('tfaBtn').addEventListener('click', async () => {
+    openModal($('tfaModal'));
+    await goTfa('status');
+  });
+
+  $('tfaFoot').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-tfa]');
+    if (!b) return;
+    if (b.dataset.tfa === 'download') {
+      const blob = new Blob([`رموز التحقق الاحتياطية - منصة الإقامات (${state.me.username})\r\n\r\n${tfa.data.codes.join('\r\n')}\r\n`], { type: 'text/plain' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'iqama-recovery-codes.txt';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      return;
+    }
+    goTfa(b.dataset.tfa);
+  });
+
+  $('tfaForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target.elements;
+    const body = { password: f.password?.value, code: f.code?.value };
+    try {
+      if (tfa.step === 'password') {
+        tfa.data = await api('/api/me/2fa/setup', { method: 'POST', body: JSON.stringify(body) });
+        tfa.step = 'scan';
+      } else if (tfa.step === 'scan') {
+        const r = await api('/api/me/2fa/enable', { method: 'POST', body: JSON.stringify(body) });
+        tfa.data = { codes: r.recoveryCodes };
+        tfa.step = 'codes';
+        toast('تم تفعيل التحقق بخطوتين');
+      } else if (tfa.step === 'regen') {
+        const r = await api('/api/me/2fa/recovery', { method: 'POST', body: JSON.stringify(body) });
+        tfa.data = { codes: r.recoveryCodes };
+        tfa.step = 'codes';
+      } else if (tfa.step === 'disable') {
+        await api('/api/me/2fa/disable', { method: 'POST', body: JSON.stringify(body) });
+        toast('تم إيقاف التحقق بخطوتين');
+        await goTfa('status');
+        return;
+      }
+      renderTfa();
+    } catch (err) {
+      $('tfaError').querySelector('span').textContent = err.message;
+      $('tfaError').hidden = false;
+    }
+  });
 
   // ---------- تغيير كلمة المرور ----------
 

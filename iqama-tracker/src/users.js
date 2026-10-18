@@ -29,7 +29,7 @@ function validateUser(body, { isNew }) {
   return { errors, value: { username, fullName, role, password, active, branchId } };
 }
 
-const userColumns = 'id, username, full_name, role, active, branch_id, last_login, created_at';
+const userColumns = 'id, username, full_name, role, active, branch_id, last_login, created_at, totp_secret IS NOT NULL AS two_factor';
 
 async function activeAdmins(exceptId) {
   const { rows } = await pool.query(

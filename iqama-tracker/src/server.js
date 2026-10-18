@@ -13,6 +13,7 @@ const { router: backup } = require('./backup');
 const { router: reminders } = require('./reminders');
 const { router: costs } = require('./costs');
 const { router: payroll } = require('./payroll');
+const { router: twofactor } = require('./twofactor');
 const { can, permissionsFor, ROLES } = require('./permissions');
 
 // القسم المطلوب لكل مسار (null = متاح لأي مستخدم مسجّل)
@@ -64,6 +65,7 @@ function createApp() {
   app.use(express.json({ limit: '100kb' }));
 
   app.post('/api/login', auth.login);
+  app.post('/api/login/2fa', auth.loginTwoFactor);
   app.post('/api/logout', auth.logout);
 
   app.use('/api', auth.requireAuth);
@@ -80,8 +82,10 @@ function createApp() {
     emailEnabled: alerts.emailEnabled(),
     alertEmails: config.alertEmails,
     messaging: notify.status(),
+    twoFactor: req.user.twoFactor,
   }));
   app.use('/api', users);
+  app.use('/api', twofactor);
   app.use('/api', residencies);
   app.use('/api', modules);
   app.use('/api', reports);
