@@ -8,6 +8,7 @@ const { gregorianToHijri } = require('../public/hijri');
 const { can } = require('./permissions');
 const { defaultCost, costSql } = require('./costs');
 const saudization = require('./saudization');
+const payroll = require('./payroll');
 
 const router = express.Router();
 const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
@@ -375,6 +376,46 @@ const REPORTS = {
           rows: rows.map((r) => [r.employee_name, r.employee_iqama, r.issue_date, r.amount, r.monthly_installment, r.paid, r.remaining, r.reason]),
           totals: ['الإجمالي', '', '', sum('amount'), '', sum('paid'), sum('remaining'), ''],
         }],
+      };
+    },
+  },
+
+  payroll: {
+    title: 'كشف خصم أقساط السلف من الرواتب',
+    description: 'القسط المستحق على كل موظف في شهر معيّن، والمتبقي قبل الخصم وبعده، لتسليمه للمحاسب.',
+    section: 'advances',
+    icon: 'wallet',
+    params: [{ name: 'month', label: 'الشهر', type: 'month' }],
+    async run(req, q) {
+      const month = payroll.parseMonth(q.month);
+      if (!month) return null;
+      const data = await payroll.sheet(req, month);
+      const sections = [{
+        columns: [
+          { label: 'الموظف' }, { label: 'رقم الإقامة', type: 'mono' }, { label: 'الفرع' }, { label: 'مبلغ السلفة', type: 'money' },
+          { label: 'المتبقي قبل الخصم', type: 'money' }, { label: 'الخصم', type: 'money' }, { label: 'المتبقي بعد الخصم', type: 'money' },
+          { label: 'الحالة', type: 'status' },
+        ],
+        rows: data.lines.map((l) => [l.name, l.iqama, l.branch, l.amount, l.before, l.deduction, l.after,
+          statusCell(l.recorded ? 'مسجّل' : 'غير مسجّل', l.recorded ? 'valid' : 'expiring')]),
+        totals: ['الإجمالي', '', '', '', '', data.totals.deduction, '', ''],
+      }];
+      if (data.noInstallment.length) {
+        sections.push({
+          title: 'سلف بدون قسط شهري (لا تُخصم تلقائيًا)',
+          columns: [{ label: 'الموظف' }, { label: 'رقم الإقامة', type: 'mono' }, { label: 'تاريخ السلفة', type: 'date' }, { label: 'المتبقي', type: 'money' }],
+          rows: data.noInstallment.map((l) => [l.name, l.iqama, l.issueDate, l.remaining]),
+        });
+      }
+      return {
+        subtitle: `راتب شهر ${data.monthName}`,
+        kpis: [
+          { label: 'إجمالي الخصم', value: data.totals.deduction, type: 'money' },
+          { label: 'عدد الموظفين', value: data.totals.employees },
+          { label: 'عدد الأقساط', value: data.lines.length },
+          { label: 'غير مسجّل بعد', value: data.totals.pending, tone: data.totals.pending ? 'expiring' : '' },
+        ],
+        sections,
       };
     },
   },

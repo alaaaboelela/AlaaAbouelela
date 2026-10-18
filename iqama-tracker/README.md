@@ -189,6 +189,8 @@ sudo systemctl start iqama
 | GET | `/api/overview` | ملخص كل الأقسام للوحة المتابعة |
 | GET | `/api/backup` ، `/api/backup/download?files=0` | حالة النسخ الاحتياطي / تنزيل نسخة كاملة (مدير النظام) |
 | GET / PUT | `/api/costs` | بنود تكلفة تجديد الإقامة الافتراضية (التعديل لمدير النظام) |
+| GET | `/api/payroll?month=2026-10` ، `/api/payroll/export.xlsx` | كشف خصم أقساط السلف من رواتب الشهر |
+| POST / DELETE | `/api/payroll/record` | تسجيل أقساط الكشف كدفعات / إلغاء تسجيل الشهر |
 | GET / PUT | `/api/reminders` | إعدادات تذكير الموظفين بالـ SMS والمستحق وآخر الرسائل |
 | POST | `/api/reminders/run` ، `/api/reminders/test` | إرسال المستحق الآن / رسالة تجربة على رقم |
 

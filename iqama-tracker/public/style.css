@@ -1524,3 +1524,30 @@ img.initials { object-fit: cover; background: var(--surface-3); }
   .saudi-branches li { grid-template-columns: minmax(0, 1fr) 52px; row-gap: 6px; }
   .saudi-branches .name { grid-column: 1 / -1; }
 }
+
+/* كشف خصم السلف من الرواتب */
+dialog.wide { width: min(980px, calc(100vw - 32px)); }
+.payroll-month { width: auto; max-width: 180px; }
+.payroll-body { padding: 18px 24px; overflow: auto; max-height: calc(100vh - 220px); }
+.payroll-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+.payroll-kpis div { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; }
+.payroll-kpis small { display: block; color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+.payroll-kpis b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.payroll-table { border: 1px solid var(--border); border-radius: 12px; }
+.payroll-table tbody td { padding: 10px 14px; font-size: 13.5px; }
+.payroll-table tr.recorded td { color: var(--text-2); }
+.payroll-table td.deduct { font-weight: 700; color: var(--text); }
+.payroll-table tfoot td { padding: 12px 14px; font-weight: 700; background: var(--surface-2); border-top: 1px solid var(--border); }
+.payroll-note { margin: 14px 0 0; font-size: 13px; color: var(--text-2); }
+.danger-text { color: var(--danger); }
+#payrollModal .modal-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#payrollModal .spacer { flex: 1; }
+@media (max-width: 700px) { .payroll-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.payroll-table .pick { width: 36px; padding-inline-end: 0; }
+.payroll-table .pick input { width: 16px; height: 16px; accent-color: var(--brand); }
+.payroll-table tr.skipped td:not(.pick) { opacity: .45; }
+@media (max-width: 600px) {
+  #payrollModal .modal-head { flex-wrap: wrap; }
+  #payrollModal .payroll-month { order: 3; max-width: none; flex-basis: 100%; }
+  .payroll-body { padding: 14px 16px; }
+}

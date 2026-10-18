@@ -311,3 +311,7 @@ CREATE INDEX IF NOT EXISTS employee_notices_sent_idx ON employee_notices (sent_a
 
 -- تكلفة تجديد خاصة بالموظف (فارغة = التكلفة الافتراضية من الإعدادات)
 ALTER TABLE residencies ADD COLUMN IF NOT EXISTS renewal_cost NUMERIC(12, 2);
+
+-- خصم أقساط السلف من الرواتب: الدفعة المسجّلة من كشف شهر معيّن (مرة واحدة لكل سلفة في الشهر)
+ALTER TABLE advance_payments ADD COLUMN IF NOT EXISTS payroll_month TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS advance_payments_payroll_idx ON advance_payments (advance_id, payroll_month) WHERE payroll_month IS NOT NULL;

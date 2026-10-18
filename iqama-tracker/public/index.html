@@ -248,6 +248,7 @@
               <div class="actions">
                 <a class="btn btn-ghost" id="mTemplateBtn" title="ملف Excel فارغ بالأعمدة المطلوبة"><svg class="icon"><use href="icons.svg#i-file"/></svg>نموذج الاستيراد</a>
                 <button class="btn btn-ghost" id="mImportBtn" type="button"><svg class="icon"><use href="icons.svg#i-upload"/></svg>استيراد</button>
+                <button class="btn btn-primary" id="mPayrollBtn" type="button" hidden><svg class="icon"><use href="icons.svg#i-wallet"/></svg>كشف خصم الرواتب</button>
                 <button class="btn btn-ghost" id="mExportBtn" type="button"><svg class="icon"><use href="icons.svg#i-download"/></svg>تصدير Excel</button>
                 <input id="mImportFile" type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
               </div>
@@ -722,6 +723,38 @@
     </form>
   </dialog>
 
+  <!-- كشف خصم أقساط السلف من الرواتب -->
+  <dialog id="payrollModal" aria-labelledby="payrollTitle" class="wide">
+    <div class="modal-head">
+      <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-wallet"/></svg></span>
+      <h2 id="payrollTitle">كشف خصم أقساط السلف</h2>
+      <input class="input payroll-month" id="payrollMonth" type="month" aria-label="الشهر">
+      <button class="icon-btn" type="button" data-close aria-label="إغلاق"><svg class="icon"><use href="icons.svg#i-x"/></svg></button>
+    </div>
+    <div class="payroll-body">
+      <div class="payroll-kpis" id="payrollKpis"></div>
+      <div class="table-wrap payroll-table">
+        <table>
+          <thead><tr><th class="pick"><input type="checkbox" id="payrollAll" aria-label="تحديد الكل" checked></th><th>الموظف</th><th>مبلغ السلفة</th><th>المتبقي قبل</th><th>الخصم</th><th>المتبقي بعد</th><th>الحالة</th></tr></thead>
+          <tbody id="payrollRows"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="payrollEmpty" hidden>
+        <span class="empty-icon"><svg class="icon"><use href="icons.svg#i-check"/></svg></span>
+        <strong>لا توجد أقساط مستحقة في هذا الشهر</strong>
+        <p>السلف اللي ليها قسط شهري وعليها متبقي بتظهر هنا.</p>
+      </div>
+      <p class="payroll-note" id="payrollNote" hidden></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost danger-text" type="button" id="payrollUndo" hidden>إلغاء تسجيل الشهر</button>
+      <span class="spacer"></span>
+      <a class="btn btn-ghost" id="payrollPrint" target="_blank" rel="noopener"><svg class="icon"><use href="icons.svg#i-printer"/></svg>طباعة</a>
+      <a class="btn btn-ghost" id="payrollExport"><svg class="icon"><use href="icons.svg#i-download"/></svg>Excel</a>
+      <button class="btn btn-primary" type="button" id="payrollRecord">تسجيل الخصم</button>
+    </div>
+  </dialog>
+
   <!-- نافذة تأكيد الحذف -->
   <dialog id="confirmModal">
     <div class="confirm-body">
@@ -743,5 +776,6 @@
   <script src="modules.js"></script>
   <script src="admin.js"></script>
   <script src="planner.js"></script>
+  <script src="payroll.js"></script>
 </body>
 </html>

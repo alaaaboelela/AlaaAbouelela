@@ -12,6 +12,7 @@ const { router: reports } = require('./reports');
 const { router: backup } = require('./backup');
 const { router: reminders } = require('./reminders');
 const { router: costs } = require('./costs');
+const { router: payroll } = require('./payroll');
 const { can, permissionsFor, ROLES } = require('./permissions');
 
 // القسم المطلوب لكل مسار (null = متاح لأي مستخدم مسجّل)
@@ -23,6 +24,7 @@ function sectionFor(req) {
   if (p === '/settings' && req.method !== 'GET') return 'settings';
   if (/^\/reminders(\/|$)/.test(p)) return 'settings';
   if (p === '/costs') return req.method === 'GET' ? 'residencies' : 'settings';
+  if (/^\/payroll(\/|$)/.test(p)) return 'advances';
   if (p === '/documents') return String(req.query.entity || 'unknown');
   return null;
 }
@@ -86,6 +88,7 @@ function createApp() {
   app.use('/api', backup);
   app.use('/api', reminders);
   app.use('/api', costs);
+  app.use('/api', payroll);
 
   app.get('/api/alerts', async (req, res) => {
     res.json({ ...(await alerts.collectAlerts(req.branch)), emailEnabled: alerts.emailEnabled() });

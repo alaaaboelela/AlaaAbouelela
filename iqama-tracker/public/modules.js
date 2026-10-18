@@ -105,6 +105,7 @@ const Modules = (() => {
     $('mTemplateBtn').href = `/api/m/${key}/template.xlsx`;
     $('mTemplateBtn').hidden = !can(key, 'write');
     $('mImportBtn').hidden = !can(key, 'write');
+    $('mPayrollBtn').hidden = key !== 'advances';
     $('mSearch').placeholder = `ابحث في ${m.label}...`;
     $('mStatus').innerHTML = [['all', 'الكل'], ...Object.entries(m.statuses).map(([k, s]) => [k, s.label])]
       .map(([k, label]) => `<button type="button" data-status="${k}" aria-pressed="${k === ms.status}">${esc(label)} <span class="count" data-mcount="${k}"></span></button>`)
@@ -254,6 +255,9 @@ const Modules = (() => {
         break;
       case 'int':
         input = `<input class="input" name="${f.name}" inputmode="numeric" value="${esc(v)}"${ph}>`;
+        break;
+      case 'month':
+        input = `<input class="input" type="month" name="${f.name}" value="${esc(v || todayIso().slice(0, 7))}" max="${todayIso().slice(0, 7)}">`;
         break;
       case 'rating':
         input = `<div class="rating-input" role="radiogroup" aria-label="${esc(f.label)}">
@@ -855,6 +859,7 @@ const Modules = (() => {
     has: (key) => Boolean(schema[key]),
     meta: (key) => ({ title: schema[key].label, subtitle: SUBTITLES[key] || '', singular: schema[key].singular }),
     show,
+    reload: () => load(),
     openForm,
     openEmployee,
     loadOverview,
