@@ -22,8 +22,9 @@ async function main() {
   await pool.query(`UPDATE residencies SET branch_id = (SELECT id FROM branches ORDER BY id OFFSET (residencies.id % 3) LIMIT 1)
     WHERE branch_id IS NULL`);
 
-  const companies = ['شركة المراعي', 'أرامكو السعودية', 'شركة الاتصالات السعودية', 'مجموعة بن لادن', 'شركة النهدي الطبية',
-    'شركة سابك', 'بنده للتجزئة', 'شركة الخطوط السعودية للتموين', 'مجموعة الحكير', 'شركة جرير', 'شركة المياه الوطنية', 'هيئة النقل'];
+  // أسماء خيالية للتجربة فقط
+  const companies = ['شركة الأفق للتشغيل', 'مجموعة الواحة الصناعية', 'شركة الربط للاتصالات', 'مجموعة البنيان للمقاولات', 'شركة الرعاية الطبية',
+    'شركة المعادن المتحدة', 'أسواق الوفرة', 'شركة الضيافة للتموين', 'مجموعة الريادة التجارية', 'مكتبة المعرفة', 'شركة الينابيع للمياه', 'مؤسسة النقل السريع'];
   for (const [i, c] of companies.entries()) {
     await pool.query(
       `INSERT INTO contracts (company_name, contract_number, contract_type, start_date, end_date, value, contact_person, contact_phone)
