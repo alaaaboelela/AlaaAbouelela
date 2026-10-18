@@ -308,3 +308,6 @@ CREATE TABLE IF NOT EXISTS employee_notices (
   UNIQUE (residency_id, expiry_date, threshold)
 );
 CREATE INDEX IF NOT EXISTS employee_notices_sent_idx ON employee_notices (sent_at DESC);
+
+-- تكلفة تجديد خاصة بالموظف (فارغة = التكلفة الافتراضية من الإعدادات)
+ALTER TABLE residencies ADD COLUMN IF NOT EXISTS renewal_cost NUMERIC(12, 2);

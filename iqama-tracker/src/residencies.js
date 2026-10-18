@@ -5,6 +5,7 @@ const { writeXlsx, readTable, parseDateCell, toLatinDigits } = require('./xlsx')
 const { hijriToGregorian, gregorianToHijri } = require('../public/hijri');
 const config = require('./config');
 const audit = require('./audit');
+const { defaultCost, costSql } = require('./costs');
 
 const router = express.Router();
 
@@ -27,7 +28,7 @@ function params() {
 
 const columns = (todayParam) => `id, name, iqama_number, expiry_date, nationality, phone, employer, notes, annual_leave_days,
   branch_id, (SELECT b.name FROM branches b WHERE b.id = residencies.branch_id) AS branch_name, photo,
-  employment_status, left_date, left_reason,
+  employment_status, left_date, left_reason, renewal_cost,
   created_at, updated_at, (expiry_date - ${todayParam}::date) AS days_left`;
 
 // شرط الفرع الحالي (فارغ = كل الفروع)
@@ -68,6 +69,7 @@ function toApi(row, alertDays) {
     employment: row.employment_status || 'active',
     leftDate: row.left_date || null,
     leftReason: row.left_reason || '',
+    renewalCost: row.renewal_cost == null ? null : Number(row.renewal_cost),
     daysLeft: row.days_left,
     status: statusOf(row.days_left, alertDays),
     createdAt: row.created_at,
@@ -112,6 +114,10 @@ function validate(body) {
   const leaveRaw = str(body.annualLeaveDays);
   const annualLeaveDays = leaveRaw === '' ? 21 : Number(leaveRaw);
   if (!Number.isInteger(annualLeaveDays) || annualLeaveDays < 0 || annualLeaveDays > 365) errors.push('رصيد الإجازة السنوية غير صحيح');
+  // undefined = بدون تغيير، فارغ = التكلفة الافتراضية
+  const costRaw = body.renewalCost === undefined ? undefined : str(body.renewalCost).replace(/[,٬]/g, '');
+  const renewalCost = costRaw === undefined || costRaw === '' ? (costRaw === '' ? null : undefined) : Number(toLatinDigits(costRaw));
+  if (renewalCost != null && (!Number.isFinite(renewalCost) || renewalCost < 0 || renewalCost > 1000000)) errors.push('تكلفة التجديد غير صحيحة');
 
   return {
     errors,
@@ -125,6 +131,7 @@ function validate(body) {
       notes: str(body.notes).slice(0, 2000),
       annualLeaveDays,
       branchId: /^\d{1,18}$/.test(str(body.branchId)) ? str(body.branchId) : null,
+      renewalCost,
     },
   };
 }
@@ -223,14 +230,20 @@ router.get('/stats/monthly', async (req, res) => {
   end.setUTCMonth(end.getUTCMonth() + 12);
 
   const { rows } = await pool.query(
-    `SELECT to_char(expiry_date, 'YYYY-MM') AS month, count(*)::int AS count
-     FROM residencies WHERE expiry_date >= $1::date AND expiry_date < $2::date AND ${ACTIVE}
-       AND ($3::bigint IS NULL OR branch_id = $3::bigint)
+    `SELECT CASE WHEN expiry_date < $4::date THEN 'overdue' ELSE to_char(expiry_date, 'YYYY-MM') END AS month,
+       count(*)::int AS count, COALESCE(sum(${costSql('$3')}), 0)::float AS cost
+     FROM residencies WHERE expiry_date < $1::date AND ${ACTIVE}
+       AND ($2::bigint IS NULL OR branch_id = $2::bigint)
      GROUP BY 1`,
-    [monthStart, end.toISOString().slice(0, 10), req.branch || null],
+    [end.toISOString().slice(0, 10), req.branch || null, await defaultCost(), today()],
   );
-  const counts = Object.fromEntries(rows.map((r) => [r.month, r.count]));
-  res.json(months.map((month) => ({ month, count: counts[month] || 0 })));
+  const by = Object.fromEntries(rows.map((r) => [r.month, r]));
+  const overdue = by.overdue || { count: 0, cost: 0 };
+  // الشهور من النهارده لقدّام، وأي إقامة منتهية قبل النهارده (لموظف على رأس العمل) في "المتأخر" لأنها محتاجة تجديد فوري
+  res.json({
+    months: months.map((month) => ({ month, count: by[month]?.count || 0, cost: by[month]?.cost || 0 })),
+    overdue: { count: overdue.count, cost: overdue.cost },
+  });
 });
 
 // ---------- تصدير / استيراد ----------
@@ -398,11 +411,11 @@ router.post('/residencies', async (req, res) => {
   if (errors.length) return res.status(400).json({ error: errors.join('، ') });
   try {
     const { rows } = await pool.query(
-      `INSERT INTO residencies (name, iqama_number, expiry_date, nationality, phone, employer, notes, annual_leave_days, branch_id)
-       VALUES ($2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING ${columns('$1')}`,
+      `INSERT INTO residencies (name, iqama_number, expiry_date, nationality, phone, employer, notes, annual_leave_days, branch_id, renewal_cost)
+       VALUES ($2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING ${columns('$1')}`,
       [today(), value.name, value.iqamaNumber, value.expiryDate,
         value.nationality, value.phone, value.employer, value.notes, value.annualLeaveDays,
-        req.branchLocked ? req.branch : value.branchId || req.branch],
+        req.branchLocked ? req.branch : value.branchId || req.branch, value.renewalCost ?? null],
     );
     audit.log(req, 'create', 'residencies', rows[0].id, `إقامة: ${value.name} (${value.iqamaNumber})`);
     return res.status(201).json(toApi(rows[0], await getAlertDays()));
@@ -443,10 +456,12 @@ router.put('/residencies/:id', async (req, res) => {
   try {
     const { rows } = await pool.query(
       `UPDATE residencies SET name = $3, iqama_number = $4, expiry_date = $5, nationality = $6,
-         phone = $7, employer = $8, notes = $9, annual_leave_days = $10, branch_id = $11, updated_at = now()
+         phone = $7, employer = $8, notes = $9, annual_leave_days = $10, branch_id = $11,
+         renewal_cost = CASE WHEN $12 THEN $13::numeric ELSE renewal_cost END, updated_at = now()
        WHERE id = $2 RETURNING ${columns('$1')}`,
       [today(), id, value.name, value.iqamaNumber, value.expiryDate,
-        value.nationality, value.phone, value.employer, value.notes, value.annualLeaveDays, branchId],
+        value.nationality, value.phone, value.employer, value.notes, value.annualLeaveDays, branchId,
+        value.renewalCost !== undefined, value.renewalCost ?? null],
     );
     if (!rows.length) return res.status(404).json({ error: 'الإقامة غير موجودة' });
     audit.log(req, 'update', 'residencies', id, `إقامة: ${value.name} (${value.iqamaNumber})`, audit.diff(before, {

@@ -77,7 +77,7 @@ test('التقويم والتقارير', { skip: !TEST_DB && 'TEST_DATABASE_URL
 
   await t.test('التقارير', async () => {
     const list = (await admin('/reports')).data.map((r) => r.key);
-    assert.deepEqual(list, ['residencies', 'expiries', 'advances', 'custody', 'cars', 'employee']);
+    assert.deepEqual(list, ['residencies', 'expiries', 'renewals', 'advances', 'custody', 'cars', 'employee']);
 
     const res = (await admin('/reports/residencies?days=30')).data;
     assert.equal(res.sections[0].rows.length, 2);

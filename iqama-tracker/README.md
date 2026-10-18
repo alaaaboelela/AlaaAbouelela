@@ -188,6 +188,7 @@ sudo systemctl start iqama
 | GET | `/api/employees?q=` ، `/api/employees/:id/summary` | البحث عن موظف / ملفه الشامل |
 | GET | `/api/overview` | ملخص كل الأقسام للوحة المتابعة |
 | GET | `/api/backup` ، `/api/backup/download?files=0` | حالة النسخ الاحتياطي / تنزيل نسخة كاملة (مدير النظام) |
+| GET / PUT | `/api/costs` | بنود تكلفة تجديد الإقامة الافتراضية (التعديل لمدير النظام) |
 | GET / PUT | `/api/reminders` | إعدادات تذكير الموظفين بالـ SMS والمستحق وآخر الرسائل |
 | POST | `/api/reminders/run` ، `/api/reminders/test` | إرسال المستحق الآن / رسالة تجربة على رقم |
 

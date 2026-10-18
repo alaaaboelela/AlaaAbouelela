@@ -126,8 +126,12 @@
             <div class="card">
               <div class="card-head">
                 <div>
-                  <h2 class="card-title">الإقامات المنتهية خلال الـ 12 شهرًا القادمة</h2>
-                  <p class="card-sub">عدد الإقامات التي ينتهي تاريخها في كل شهر</p>
+                  <h2 class="card-title" id="chartTitle">الإقامات المنتهية خلال الـ 12 شهرًا القادمة</h2>
+                  <p class="card-sub" id="chartSub">عدد الإقامات التي ينتهي تاريخها في كل شهر</p>
+                </div>
+                <div class="segmented" id="chartMetric" role="group" aria-label="المعروض في الرسم">
+                  <button type="button" data-metric="count" aria-pressed="true">العدد</button>
+                  <button type="button" data-metric="cost" aria-pressed="false">التكلفة</button>
                 </div>
               </div>
               <div class="card-body">
@@ -450,6 +454,20 @@
               </div>
             </div>
 
+            <div class="card" id="costCard">
+              <div class="setting-head">
+                <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-wallet"/></svg></span>
+                <div><h2 class="card-title">تكلفة تجديد الإقامة</h2><p class="card-sub">التكلفة السنوية التقديرية لتجديد إقامة موظف واحد، وبتتحسب منها توقعات التكاليف. ممكن تحددي تكلفة خاصة لأي موظف من ملفه، والسعودي (رقم يبدأ بـ 1) مستثنى.</p></div>
+              </div>
+              <div class="card-body">
+                <div class="cost-items" id="costItems"></div>
+                <div class="inline-row cost-total">
+                  <span>الإجمالي للموظف سنويًا: <b id="costTotal">—</b></span>
+                  <button class="btn btn-primary" id="costSave" type="button">حفظ</button>
+                </div>
+              </div>
+            </div>
+
             <div class="card wide-card" id="remindCard" hidden>
               <div class="setting-head">
                 <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-user"/></svg></span>
@@ -564,6 +582,7 @@
         <label class="field"><span>جهة العمل / الكفيل</span><input class="input" name="employer" maxlength="200"></label>
         <label class="field" id="resBranchField"><span>الفرع</span><select class="input" name="branchId" id="resBranch"></select></label>
         <label class="field"><span>رصيد الإجازة السنوية (يوم)</span><input class="input" name="annualLeaveDays" type="number" min="0" max="365" placeholder="21"></label>
+        <label class="field"><span>تكلفة التجديد السنوية (ر.س)</span><input class="input" name="renewalCost" inputmode="decimal" maxlength="12" id="resCost"></label>
         <label class="field wide"><span>ملاحظات</span><textarea class="input" name="notes" rows="2" maxlength="2000"></textarea></label>
       </div>
       <div class="modal-foot">

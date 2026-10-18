@@ -95,13 +95,12 @@ test('API', { skip: !TEST_DB && 'TEST_DATABASE_URL غير مضبوط' }, async (
       { total: 3, expired: 1, expiring: 1, valid: 1, withinWeek: 0 },
     );
 
-    const monthly = (await call('/api/stats/monthly')).data;
+    const { months: monthly, overdue } = (await call('/api/stats/monthly')).data;
     assert.equal(monthly.length, 12);
     assert.equal(monthly[0].month, isoInDays(0).slice(0, 7));
-    // تُحسب فقط التواريخ من بداية الشهر الحالي (محمد المنتهي قد يقع في الشهر الحالي أو السابق)
-    const monthStart = `${isoInDays(0).slice(0, 7)}-01`;
-    const expected = [isoInDays(10), isoInDays(-3), isoInDays(200)].filter((d) => d >= monthStart).length;
-    assert.equal(monthly.reduce((sum, m) => sum + m.count, 0), expected);
+    // الشهور من النهارده لقدّام، والمنتهية (محمد) في المتأخر
+    assert.equal(monthly.reduce((sum, m) => sum + m.count, 0), 2);
+    assert.equal(overdue.count, 1);
 
     const expiring = (await call('/api/residencies?status=expiring')).data;
     assert.deepEqual(expiring.items.map((r) => r.name), ['أحمد']);

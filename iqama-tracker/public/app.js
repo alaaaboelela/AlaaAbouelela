@@ -332,14 +332,49 @@ async function loadUpcoming() {
 }
 
 let chartData = [];
+let chartOverdue = { count: 0, cost: 0 };
 let chartAnimated = false;
+let chartMetric = 'count';
+try { if (localStorage.getItem('chartMetric') === 'cost') chartMetric = 'cost'; } catch { /* تجاهل */ }
+
+const money = (n) => `${fmt(Math.round(n))} ر.س`;
+const compact = new Intl.NumberFormat('ar-SA-u-nu-latn', { notation: 'compact', maximumFractionDigits: 1 });
+
+let costCache = null;
+function costDefaults() {
+  costCache ||= api('/api/costs').catch((err) => { costCache = null; throw err; });
+  return costCache;
+}
 
 async function loadChart() {
-  chartData = await api('/api/stats/monthly');
+  const data = await api('/api/stats/monthly');
+  chartData = data.months;
+  chartOverdue = data.overdue;
   chartAnimated = false;
+  renderChartHead();
   renderChart();
+}
+
+function renderChartHead() {
+  const cost = chartMetric === 'cost';
+  for (const b of $$('#chartMetric button')) b.setAttribute('aria-pressed', String(b.dataset.metric === chartMetric));
+  const total = chartData.reduce((s, d) => s + d.cost, 0);
+  $('chartTitle').textContent = cost ? 'تكلفة تجديد الإقامات المتوقعة' : 'الإقامات المنتهية خلال الـ 12 شهرًا القادمة';
+  $('chartSub').innerHTML = cost
+    ? `${money(total)} خلال 12 شهرًا${chartOverdue.cost ? ` · و<span class="text-expired">${money(chartOverdue.cost)}</span> لإقامات منتهية` : ''} · <a href="/report.html?key=renewals${Branch.current && !Branch.locked ? `&branch=${encodeURIComponent(Branch.current)}` : ''}" target="_blank" rel="noopener">التقرير</a>`
+    : 'عدد الإقامات التي ينتهي تاريخها في كل شهر';
   $('chartTable').querySelector('tbody').innerHTML = chartData
-    .map((d) => `<tr><th>${monthLabel(d.month, 'long')}</th><td>${d.count}</td></tr>`).join('');
+    .map((d) => `<tr><th>${monthLabel(d.month, 'long')}</th><td>${cost ? money(d.cost) : d.count}</td></tr>`).join('');
+}
+
+for (const b of $$('#chartMetric button')) {
+  b.addEventListener('click', () => {
+    chartMetric = b.dataset.metric;
+    try { localStorage.setItem('chartMetric', chartMetric); } catch { /* تجاهل */ }
+    chartAnimated = false;
+    renderChartHead();
+    renderChart();
+  });
 }
 
 function monthLabel(month, style = 'short') {
@@ -366,33 +401,35 @@ function renderChart() {
   const n = chartData.length;
   const band = iw / n;
   const bw = Math.min(24, band * 0.6);
-  const maxVal = Math.max(...chartData.map((d) => d.count), 1);
+  const val = (d) => d[chartMetric];
+  const tick = chartMetric === 'cost' ? (v) => compact.format(v) : fmt;
+  const maxVal = Math.max(...chartData.map(val), 1);
   const step = niceStep(maxVal / 4);
   const max = step * 4;
   const y = (v) => m.top + ih - (v / max) * ih;
   // الزمن يسير من اليمين لليسار (اتجاه القراءة العربية)
   const xCenter = (i) => m.left + iw - (i + 0.5) * band;
   const showEvery = band < 46 ? 2 : 1;
-  const peak = chartData.reduce((best, d, i) => (d.count > chartData[best].count ? i : best), 0);
+  const peak = chartData.reduce((best, d, i) => (val(d) > val(chartData[best]) ? i : best), 0);
 
   let grid = '';
   for (let v = 0; v <= max; v += step) {
     grid += `<line x1="${m.left}" x2="${m.left + iw}" y1="${y(v)}" y2="${y(v)}"/>`;
-    grid += `<text x="${W - m.right + 10}" y="${y(v) + 4}" text-anchor="start">${fmt(v)}</text>`;
+    grid += `<text x="${W - m.right + 10}" y="${y(v) + 4}" text-anchor="start">${tick(v)}</text>`;
   }
 
   const cols = chartData.map((d, i) => {
     const cx = xCenter(i);
     const x = cx - bw / 2;
-    const top = y(d.count);
+    const top = y(val(d));
     const h = m.top + ih - top;
     const r = Math.min(4, h, bw / 2);
     const path = h > 0
       ? `M${x},${top + h}V${top + r}Q${x},${top} ${x + r},${top}H${x + bw - r}Q${x + bw},${top} ${x + bw},${top + r}V${top + h}Z`
       : '';
     const anim = chartAnimated || reduceMotion ? '' : `class="grow" style="animation-delay:${i * 45}ms"`;
-    const label = i === peak && d.count > 0
-      ? `<text class="value-label" x="${cx}" y="${top - 8}" text-anchor="middle">${fmt(d.count)}</text>` : '';
+    const label = i === peak && val(d) > 0
+      ? `<text class="value-label" x="${cx}" y="${top - 8}" text-anchor="middle">${tick(val(d))}</text>` : '';
     const month = i % showEvery === 0
       ? `<text x="${cx}" y="${H - 8}" text-anchor="middle">${monthLabel(d.month)}</text>` : '';
     return `<g class="col" data-i="${i}">
@@ -402,7 +439,7 @@ function renderChart() {
     </g>`;
   }).join('');
 
-  const svg = `<svg viewBox="0 0 ${W} ${H}" direction="ltr" role="img" aria-label="الإقامات المنتهية حسب الشهر">
+  const svg = `<svg viewBox="0 0 ${W} ${H}" direction="ltr" role="img" aria-label="${chartMetric === 'cost' ? 'تكلفة التجديد حسب الشهر' : 'الإقامات المنتهية حسب الشهر'}">
     <g class="grid axis">${grid}</g>
     <g class="bars">${cols}</g>
   </svg>`;
@@ -418,9 +455,11 @@ function renderChart() {
       const d = chartData[i];
       bars.classList.add('hovering');
       col.classList.add('hover');
-      tip.innerHTML = `<strong>${fmt(d.count)} إقامة</strong>${monthLabel(d.month, 'long')}`;
+      tip.innerHTML = chartMetric === 'cost'
+        ? `<strong>${money(d.cost)}</strong>${fmt(d.count)} إقامة · ${monthLabel(d.month, 'long')}`
+        : `<strong>${fmt(d.count)} إقامة</strong>${monthLabel(d.month, 'long')}`;
       tip.style.left = `${xCenter(i)}px`;
-      tip.style.top = `${Math.max(y(d.count), m.top)}px`;
+      tip.style.top = `${Math.max(y(val(d)), m.top)}px`;
       tip.classList.add('show');
     });
     col.addEventListener('mouseleave', () => {
@@ -643,6 +682,9 @@ function openForm(record) {
     form.elements[key].value = record?.[key] || '';
   }
   form.elements.annualLeaveDays.value = record?.annualLeaveDays ?? 21;
+  form.elements.renewalCost.value = record?.renewalCost ?? '';
+  $('resCost').placeholder = 'الافتراضي';
+  costDefaults().then((c) => { $('resCost').placeholder = `الافتراضي: ${fmt(c.total)}`; }).catch(() => {});
   $('resBranchField').hidden = Branch.locked || !Branch.list.length;
   $('resBranch').innerHTML = branchOptions(record ? record.branchId : Branch.current);
   $('modalTitle').textContent = record ? 'تعديل بيانات الإقامة' : 'إضافة إقامة جديدة';
@@ -663,8 +705,8 @@ form.addEventListener('submit', async (e) => {
   const data = Object.fromEntries(new FormData(form));
   const { id } = data;
   if (!data.name.trim()) return showFormError('الاسم مطلوب');
-  if (!/^2\d{9}$/.test(data.iqamaNumber.replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).trim())) {
-    return showFormError('رقم الإقامة يجب أن يكون 10 أرقام ويبدأ بـ 2');
+  if (!/^[12]\d{9}$/.test(data.iqamaNumber.replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).trim())) {
+    return showFormError('رقم الإقامة 10 أرقام ويبدأ بـ 2 (أو رقم الهوية للسعودي ويبدأ بـ 1)');
   }
   if (calendar === 'hijri') {
     data.expiryDate = Hijri.hijriToGregorian(data.expiryDateHijri) || '';
@@ -723,7 +765,36 @@ async function loadSettings() {
   renderThemeOptions();
   loadBackup();
   loadReminders();
+  loadCosts();
 }
+
+// ---------- تكلفة التجديد ----------
+
+async function loadCosts() {
+  costCache = null;
+  const c = await costDefaults();
+  const canEdit = can('settings', 'write');
+  $('costItems').innerHTML = c.items.map((i) => `<label><span>${esc(i.label)}</span>
+    <input class="input" data-cost="${esc(i.key)}" inputmode="decimal" value="${i.value}" ${canEdit ? '' : 'disabled'}></label>`).join('');
+  $('costSave').hidden = !canEdit;
+  renderCostTotal();
+}
+
+function renderCostTotal() {
+  const total = $$('[data-cost]').reduce((s, el) => s + (Number(el.value.replace(/[,٬]/g, '')) || 0), 0);
+  $('costTotal').textContent = money(total);
+}
+$('costItems').addEventListener('input', renderCostTotal);
+$('costSave').addEventListener('click', async () => {
+  const body = Object.fromEntries($$('[data-cost]').map((el) => [el.dataset.cost, el.value.replace(/[,٬]/g, '')]));
+  try {
+    await api('/api/costs', { method: 'PUT', body: JSON.stringify(body) });
+    toast('تم حفظ تكلفة التجديد');
+    loadCosts();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+});
 
 // ---------- تذكير الموظفين بالـ SMS ----------
 

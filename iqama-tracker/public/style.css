@@ -1487,3 +1487,12 @@ img.initials { object-fit: cover; background: var(--surface-3); }
 @media (max-width: 900px) { .remind-body { grid-template-columns: 1fr; } }
 .remind-test { margin-top: 10px; }
 .remind-test .input { flex: 1; min-width: 0; max-width: 200px; direction: ltr; text-align: right; }
+
+/* تكلفة التجديد */
+.cost-items { display: grid; gap: 8px; margin-bottom: 14px; }
+.cost-items label { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13.5px; color: var(--text-2); }
+.cost-items .input { width: 130px; text-align: left; direction: ltr; }
+.cost-total { justify-content: space-between; padding-top: 12px; border-top: 1px solid var(--border); font-size: 14px; }
+.cost-total b { font-size: 16px; color: var(--text); }
+#chartMetric { flex-shrink: 0; }
+.text-expired { color: var(--danger); font-weight: 600; }

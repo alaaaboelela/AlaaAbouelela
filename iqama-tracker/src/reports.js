@@ -6,6 +6,7 @@ const { inner, context, employeeSummary } = require('./crud');
 const { columns, today, addDays, statusOf, toApi } = require('./residencies');
 const { gregorianToHijri } = require('../public/hijri');
 const { can } = require('./permissions');
+const { defaultCost, costSql } = require('./costs');
 
 const router = express.Router();
 const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
@@ -217,6 +218,93 @@ const REPORTS = {
           { label: 'إجمالي البنود', value: rows.length },
           { label: 'متأخر / منتهي', value: rows.filter((r) => r.days_left < 0).length, tone: 'expired' },
           { label: 'خلال الفترة', value: rows.filter((r) => r.days_left >= 0).length, tone: 'expiring' },
+        ],
+        sections,
+      };
+    },
+  },
+
+  renewals: {
+    title: 'توقع تكاليف تجديد الإقامات',
+    description: 'المبلغ المتوقع لتجديد الإقامات شهرًا بشهر، والمتأخر منها، وتفاصيل كل موظف.',
+    section: 'residencies',
+    icon: 'wallet',
+    params: [{ name: 'months', label: 'عدد الشهور', type: 'int', default: 12 }],
+    async run(req, q) {
+      const months = Math.min(36, Math.max(1, Number.parseInt(q.months, 10) || 12));
+      const t = today();
+      const endDate = new Date(`${t.slice(0, 7)}-01T00:00:00Z`);
+      endDate.setUTCMonth(endDate.getUTCMonth() + months);
+      const end = endDate.toISOString().slice(0, 10);
+      const perEmployee = await defaultCost();
+      const vals = [t, end, perEmployee];
+      if (req.branch) vals.push(req.branch);
+      const where = `FROM residencies WHERE expiry_date < $2::date AND employment_status = 'active' AND iqama_number NOT LIKE '1%'
+        ${req.branch ? 'AND branch_id = $4::bigint' : ''}`;
+      // الإجماليات على كل الموظفين، والتفاصيل لحد 5000 صف
+      const [{ rows: groups }, { rows }] = await Promise.all([
+        pool.query(
+          `SELECT CASE WHEN expiry_date < $1::date THEN 'overdue' ELSE to_char(expiry_date, 'YYYY-MM') END AS month,
+             COALESCE((SELECT b.name FROM branches b WHERE b.id = residencies.branch_id), '') AS branch,
+             count(*)::int AS n, sum(${costSql('$3')})::float AS cost,
+             count(*) FILTER (WHERE expiry_date < $1::date + 92 AND expiry_date >= $1::date)::int AS soon_n,
+             COALESCE(sum(${costSql('$3')}) FILTER (WHERE expiry_date < $1::date + 92 AND expiry_date >= $1::date), 0)::float AS soon
+           ${where} GROUP BY 1, 2`, vals),
+        pool.query(`SELECT ${columns('$1')}, ${costSql('$3')}::float AS cost ${where} ORDER BY expiry_date, name LIMIT 5000`, vals),
+      ]);
+      const monthName = (m) => new Date(`${m}-15T12:00:00Z`).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { month: 'long', year: 'numeric' });
+      const total = (list, k = 'cost') => list.reduce((a, g) => a + g[k], 0);
+      const count = (list) => list.reduce((a, g) => a + g.n, 0);
+      const overdue = groups.filter((g) => g.month === 'overdue');
+      const byMonth = [];
+      for (let i = 0; i < months; i++) {
+        const d = new Date(`${t.slice(0, 7)}-01T00:00:00Z`);
+        d.setUTCMonth(d.getUTCMonth() + i);
+        const key = d.toISOString().slice(0, 7);
+        const list = groups.filter((g) => g.month === key);
+        byMonth.push([monthName(key), count(list), total(list)]);
+      }
+      const sections = [{
+        title: 'حسب الشهر',
+        columns: [{ label: 'الشهر' }, { label: 'عدد الإقامات', type: 'number' }, { label: 'التكلفة المتوقعة', type: 'money' }],
+        rows: [
+          ...(overdue.length ? [['منتهية (تجديد فوري)', count(overdue), total(overdue)]] : []),
+          ...byMonth,
+        ],
+        totals: ['الإجمالي', count(groups), total(groups)],
+      }];
+      const branches = new Map();
+      for (const g of groups) {
+        const k = g.branch || 'بدون فرع';
+        const b = branches.get(k) || [k, 0, 0];
+        b[1] += g.n;
+        b[2] += g.cost;
+        branches.set(k, b);
+      }
+      if (!req.branch && branches.size > 1) {
+        sections.push({
+          title: 'حسب الفرع',
+          columns: [{ label: 'الفرع' }, { label: 'عدد الإقامات', type: 'number' }, { label: 'التكلفة المتوقعة', type: 'money' }],
+          rows: [...branches.values()].sort((a, b) => b[2] - a[2]),
+        });
+      }
+      const all = count(groups);
+      sections.push({
+        title: all > rows.length ? `التفاصيل (أول ${rows.length.toLocaleString('en-US')} من ${all.toLocaleString('en-US')})` : 'التفاصيل',
+        columns: [
+          { label: 'الاسم' }, { label: 'رقم الإقامة', type: 'mono' }, { label: 'الجنسية' }, { label: 'الفرع / جهة العمل' },
+          { label: 'تاريخ الانتهاء', type: 'date' }, { label: 'المتبقي', type: 'days' }, { label: 'التكلفة', type: 'money' }, { label: 'ملاحظة' },
+        ],
+        rows: rows.map((r) => [r.name, r.iqama_number, r.nationality, [r.branch_name, r.employer].filter(Boolean).join(' · '),
+          r.expiry_date, r.days_left, r.cost, r.renewal_cost == null ? '' : 'تكلفة خاصة']),
+      });
+      return {
+        subtitle: `من اليوم حتى نهاية ${monthName(addDays(end, -1).slice(0, 7))} · التكلفة الافتراضية ${perEmployee.toLocaleString('en-US')} ر.س للموظف سنويًا`,
+        kpis: [
+          { label: 'التكلفة المتوقعة', value: total(groups), type: 'money' },
+          { label: 'عدد التجديدات', value: all },
+          { label: 'متأخرة (منتهية)', value: total(overdue), type: 'money', tone: 'expired' },
+          { label: 'خلال 3 شهور', value: total(groups, 'soon'), type: 'money', tone: 'expiring' },
         ],
         sections,
       };
