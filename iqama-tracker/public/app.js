@@ -77,12 +77,12 @@ function dateOf(iso) {
 }
 
 function fmtGregorian(iso, month = 'long') {
-  return dateOf(iso).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month, year: 'numeric' });
+  return dateOf(iso).toLocaleDateString(I18N.locale, { day: 'numeric', month, year: 'numeric' });
 }
 
 function fmtHijri(iso) {
   try {
-    return dateOf(iso).toLocaleDateString('ar-SA-u-ca-islamic-umalqura-nu-latn', { day: 'numeric', month: 'long', year: 'numeric' });
+    return dateOf(iso).toLocaleDateString(I18N.hijriLocale, { day: 'numeric', month: 'long', year: 'numeric' });
   } catch {
     return Hijri.gregorianToHijri(iso) + ' هـ';
   }
@@ -379,7 +379,7 @@ let chartMetric = 'count';
 try { if (localStorage.getItem('chartMetric') === 'cost') chartMetric = 'cost'; } catch { /* تجاهل */ }
 
 const money = (n) => `${fmt(Math.round(n))} ر.س`;
-const compact = new Intl.NumberFormat('ar-SA-u-nu-latn', { notation: 'compact', maximumFractionDigits: 1 });
+const compact = new Intl.NumberFormat(I18N.locale, { notation: 'compact', maximumFractionDigits: 1 });
 
 let costCache = null;
 function costDefaults() {
@@ -421,8 +421,8 @@ for (const b of $$('#chartMetric button')) {
 function monthLabel(month, style = 'short') {
   const d = new Date(month + '-15T12:00:00');
   return style === 'long'
-    ? d.toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { month: 'long', year: 'numeric' })
-    : d.toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { month: 'short' });
+    ? d.toLocaleDateString(I18N.locale, { month: 'long', year: 'numeric' })
+    : d.toLocaleDateString(I18N.locale, { month: 'short' });
 }
 
 function niceStep(raw) {
@@ -436,7 +436,9 @@ function renderChart() {
   const H = el.clientHeight;
   if (!W || !chartData.length) return;
 
-  const m = { top: 24, right: 48, bottom: 30, left: 4 };
+  // العربي: الزمن من اليمين لليسار ومحور الأرقام على اليمين، والإنجليزي بالعكس
+  const rtl = I18N.dir === 'rtl';
+  const m = rtl ? { top: 24, right: 48, bottom: 30, left: 4 } : { top: 24, right: 4, bottom: 30, left: 48 };
   const iw = W - m.left - m.right;
   const ih = H - m.top - m.bottom;
   const n = chartData.length;
@@ -448,15 +450,16 @@ function renderChart() {
   const step = niceStep(maxVal / 4);
   const max = step * 4;
   const y = (v) => m.top + ih - (v / max) * ih;
-  // الزمن يسير من اليمين لليسار (اتجاه القراءة العربية)
-  const xCenter = (i) => m.left + iw - (i + 0.5) * band;
+  const xCenter = (i) => (rtl ? m.left + iw - (i + 0.5) * band : m.left + (i + 0.5) * band);
   const showEvery = band < 46 ? 2 : 1;
   const peak = chartData.reduce((best, d, i) => (val(d) > val(chartData[best]) ? i : best), 0);
 
   let grid = '';
   for (let v = 0; v <= max; v += step) {
     grid += `<line x1="${m.left}" x2="${m.left + iw}" y1="${y(v)}" y2="${y(v)}"/>`;
-    grid += `<text x="${W - m.right + 10}" y="${y(v) + 4}" text-anchor="start">${tick(v)}</text>`;
+    grid += rtl
+      ? `<text x="${W - m.right + 10}" y="${y(v) + 4}" text-anchor="start">${tick(v)}</text>`
+      : `<text x="${m.left - 10}" y="${y(v) + 4}" text-anchor="end">${tick(v)}</text>`;
   }
 
   const cols = chartData.map((d, i) => {
@@ -948,7 +951,7 @@ $('remindTest').addEventListener('click', async () => {
 
 // ---------- النسخ الاحتياطي (مدير النظام بدون تقييد فرع) ----------
 
-const fmtStamp = (iso) => new Date(iso).toLocaleString('ar-SA-u-ca-gregory-nu-latn', {
+const fmtStamp = (iso) => new Date(iso).toLocaleString(I18N.locale, {
   day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Riyadh',
 });
 const fmtSize = (b) => (b >= 1073741824 ? `${(b / 1073741824).toFixed(1)} ج.ب` : b >= 1048576 ? `${(b / 1048576).toFixed(1)} م.ب` : `${Math.max(1, Math.round(b / 1024))} ك.ب`);
@@ -1156,6 +1159,7 @@ $('branchSelect').addEventListener('change', (e) => {
   state.me = me;
   await Modules.init();
   $('username').textContent = me.fullName || me.username;
+  $('username').title = me.fullName || me.username;
   $('roleLabel').textContent = me.roleLabel;
   $('avatar').textContent = (me.fullName || me.username).slice(0, 1).toUpperCase();
   $('importBtn').hidden = !can('residencies', 'write');

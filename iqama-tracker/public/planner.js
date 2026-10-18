@@ -59,9 +59,9 @@ const Calendar = (() => {
 
   const WEEKDAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
   const iso = (d) => d.toISOString().slice(0, 10);
-  const hijriDay = (d) => new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn', { day: 'numeric', timeZone: 'UTC' }).format(d);
-  const hijriMonth = (d) => new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d);
-  const monthName = (d) => new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d);
+  const hijriDay = (d) => new Intl.DateTimeFormat(I18N.hijriLocale, { day: 'numeric', timeZone: 'UTC' }).format(d);
+  const hijriMonth = (d) => new Intl.DateTimeFormat(I18N.hijriLocale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d);
+  const monthName = (d) => new Intl.DateTimeFormat(I18N.locale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d);
 
   // لون حسب قرب الموعد: متأخر / خلال مدة التنبيه / لاحقًا، والإجازات لونها مستقل
   function tone(type, date) {

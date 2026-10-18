@@ -2,6 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8">
+  <script src="/i18n.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>بوابة الموظف</title>
   <link rel="manifest" href="/manifest.webmanifest">
@@ -21,6 +22,7 @@
       <div><strong id="pCompany">بوابة الموظف</strong><small>بوابة الموظف</small></div>
     </div>
     <div class="portal-actions">
+      <button class="icon-btn lang-btn" id="langBtn" type="button" onclick="I18N.toggle()" data-no-i18n title="English / العربية" aria-label="English / العربية"><span class="when-ar">EN</span><span class="when-en">ع</span></button>
       <button class="icon-btn" id="pTheme" type="button" aria-label="تبديل الوضع الليلي" title="الوضع الليلي"><svg class="icon"><use id="pThemeIcon" href="icons.svg#i-moon"/></svg></button>
       <button class="icon-btn" id="pPwd" type="button" aria-label="تغيير كلمة المرور" title="تغيير كلمة المرور"><svg class="icon"><use href="icons.svg#i-key"/></svg></button>
       <button class="icon-btn" id="pLogout" type="button" aria-label="تسجيل الخروج" title="تسجيل الخروج"><svg class="icon"><use href="icons.svg#i-logout"/></svg></button>

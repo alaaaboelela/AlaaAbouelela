@@ -5,7 +5,7 @@ const fmt = (n) => nf.format(n);
 const money = (n) => `${fmt(Math.round(Number(n) * 100) / 100)} ر.س`;
 const icon = (name, cls = 'icon') => `<svg class="${cls}"><use href="icons.svg#i-${name}"/></svg>`;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const greg = (iso, month = 'long') => new Date(`${iso}T12:00:00`).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month, year: 'numeric' });
+const greg = (iso, month = 'long') => new Date(`${iso}T12:00:00`).toLocaleDateString(I18N.locale, { day: 'numeric', month, year: 'numeric' });
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const TONE = { expired: ['expired', 'منتهية'], expiring: ['expiring', 'قريبة من الانتهاء'], valid: ['valid', 'سارية'] };
 const APPROVAL = { معلقة: ['expiring', 'بانتظار الاعتماد'], معتمدة: ['valid', 'معتمدة'], مرفوضة: ['expired', 'مرفوضة'] };

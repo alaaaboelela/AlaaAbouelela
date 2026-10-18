@@ -6,13 +6,13 @@
   qs.delete('key');
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-  const nf = new Intl.NumberFormat('ar-SA-u-nu-latn');
+  const nf = new Intl.NumberFormat(I18N.locale);
   const money = (v) => (v == null || v === '' ? '—' : `${nf.format(Math.round(Number(v) * 100) / 100)} ر.س`);
-  const greg = (iso) => new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+  const greg = (iso) => new Intl.DateTimeFormat(I18N.locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
     .format(new Date(`${iso}T00:00:00Z`));
   const hijri = (iso) => {
     try {
-      return new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+      return new Intl.DateTimeFormat(I18N.hijriLocale, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
         .format(new Date(`${iso}T00:00:00Z`));
     } catch {
       return `${Hijri.gregorianToHijri(iso)} هـ`;
@@ -54,7 +54,7 @@
   }
 
   document.title = `${data.title} — ${data.today}`;
-  const time = new Date(data.generatedAt).toLocaleTimeString('ar-SA-u-nu-latn', { hour: 'numeric', minute: '2-digit' });
+  const time = new Date(data.generatedAt).toLocaleTimeString(I18N.locale, { hour: 'numeric', minute: '2-digit' });
 
   sheet.innerHTML = `
     <header class="head">

@@ -11,7 +11,7 @@ const Admin = (() => {
   }
 
   const fmtDateTime = (iso) => (iso
-    ? new Date(iso).toLocaleString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'medium', timeStyle: 'short' })
+    ? new Date(iso).toLocaleString(I18N.locale, { dateStyle: 'medium', timeStyle: 'short' })
     : '—');
 
   // ---------- المستخدمين ----------

@@ -1,9 +1,9 @@
 // Service Worker: يخلي المنصة قابلة للتثبيت كتطبيق، ويفتح صفحة "غير متصل" بدل صفحة خطأ عند انقطاع النت.
 // البيانات (/api) لا تُخزّن أبدًا؛ الملفات الثابتة: الشبكة أولًا (دايمًا أحدث نسخة) والمخزن احتياطي.
-const CACHE = 'iqama-shell-v3';
+const CACHE = 'iqama-shell-v4';
 const SHELL = [
   '/', '/index.html', '/login.html', '/offline.html', '/style.css', '/theme.js', '/hijri.js', '/app.js', '/modules.js',
-  '/admin.js', '/planner.js', '/payroll.js', '/portal.html', '/portal.js', '/login.js', '/pwa.js', '/icons.svg', '/manifest.webmanifest', '/icons/icon-192.png',
+  '/i18n.js', '/lang-en.js', '/admin.js', '/planner.js', '/payroll.js', '/portal.html', '/portal.js', '/login.js', '/pwa.js', '/icons.svg', '/manifest.webmanifest', '/icons/icon-192.png',
 ];
 
 self.addEventListener('install', (event) => {

@@ -2,6 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8">
+  <script src="/i18n.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>منصة الإقامات</title>
   <link rel="manifest" href="/manifest.webmanifest">
@@ -78,6 +79,7 @@
             <select id="branchSelect" aria-label="الفرع المعروض"></select>
           </label>
           <span class="branch-chip" id="branchChip" hidden title="حسابك مربوط بهذا الفرع"><svg class="icon"><use href="icons.svg#i-building"/></svg><span></span></span>
+          <button class="icon-btn bordered lang-btn" id="langBtn" type="button" onclick="I18N.toggle()" data-no-i18n title="English / العربية" aria-label="English / العربية"><span class="when-ar">EN</span><span class="when-en">ع</span></button>
           <button class="icon-btn bordered" id="themeBtn" type="button" aria-label="تبديل الوضع الليلي" title="تبديل الوضع الليلي">
             <svg class="icon"><use id="themeIcon" href="icons.svg#i-moon"/></svg>
           </button>
@@ -232,8 +234,8 @@
             <div class="pager">
               <span id="pageInfo"></span>
               <div class="pages">
-                <button class="btn btn-ghost btn-sm" id="prev" type="button"><svg class="icon-sm"><use href="icons.svg#i-chevron-right"/></svg>السابق</button>
-                <button class="btn btn-ghost btn-sm" id="next" type="button">التالي<svg class="icon-sm"><use href="icons.svg#i-chevron-left"/></svg></button>
+                <button class="btn btn-ghost btn-sm" id="prev" type="button"><svg class="icon-sm dir-icon"><use href="icons.svg#i-chevron-right"/></svg>السابق</button>
+                <button class="btn btn-ghost btn-sm" id="next" type="button">التالي<svg class="icon-sm dir-icon"><use href="icons.svg#i-chevron-left"/></svg></button>
               </div>
             </div>
           </div>
@@ -283,8 +285,8 @@
             <div class="pager">
               <span id="mPageInfo"></span>
               <div class="pages">
-                <button class="btn btn-ghost btn-sm" id="mPrev" type="button"><svg class="icon-sm"><use href="icons.svg#i-chevron-right"/></svg>السابق</button>
-                <button class="btn btn-ghost btn-sm" id="mNext" type="button">التالي<svg class="icon-sm"><use href="icons.svg#i-chevron-left"/></svg></button>
+                <button class="btn btn-ghost btn-sm" id="mPrev" type="button"><svg class="icon-sm dir-icon"><use href="icons.svg#i-chevron-right"/></svg>السابق</button>
+                <button class="btn btn-ghost btn-sm" id="mNext" type="button">التالي<svg class="icon-sm dir-icon"><use href="icons.svg#i-chevron-left"/></svg></button>
               </div>
             </div>
           </div>
@@ -330,8 +332,8 @@
             <div class="pager">
               <span id="auditInfo"></span>
               <div class="pages">
-                <button class="btn btn-ghost btn-sm" id="auditPrev" type="button"><svg class="icon-sm"><use href="icons.svg#i-chevron-right"/></svg>السابق</button>
-                <button class="btn btn-ghost btn-sm" id="auditNext" type="button">التالي<svg class="icon-sm"><use href="icons.svg#i-chevron-left"/></svg></button>
+                <button class="btn btn-ghost btn-sm" id="auditPrev" type="button"><svg class="icon-sm dir-icon"><use href="icons.svg#i-chevron-right"/></svg>السابق</button>
+                <button class="btn btn-ghost btn-sm" id="auditNext" type="button">التالي<svg class="icon-sm dir-icon"><use href="icons.svg#i-chevron-left"/></svg></button>
               </div>
             </div>
           </div>
@@ -348,9 +350,9 @@
                   <p class="card-sub" id="calHijri">&nbsp;</p>
                 </div>
                 <div class="cal-nav">
-                  <button class="icon-btn bordered" id="calPrev" type="button" aria-label="الشهر السابق" title="الشهر السابق"><svg class="icon"><use href="icons.svg#i-chevron-right"/></svg></button>
+                  <button class="icon-btn bordered" id="calPrev" type="button" aria-label="الشهر السابق" title="الشهر السابق"><svg class="icon dir-icon"><use href="icons.svg#i-chevron-right"/></svg></button>
                   <button class="btn btn-ghost" id="calToday" type="button">اليوم</button>
-                  <button class="icon-btn bordered" id="calNext" type="button" aria-label="الشهر التالي" title="الشهر التالي"><svg class="icon"><use href="icons.svg#i-chevron-left"/></svg></button>
+                  <button class="icon-btn bordered" id="calNext" type="button" aria-label="الشهر التالي" title="الشهر التالي"><svg class="icon dir-icon"><use href="icons.svg#i-chevron-left"/></svg></button>
                 </div>
               </div>
               <div class="cal-filters" id="calFilters" role="group" aria-label="أنواع المواعيد"></div>
@@ -441,13 +443,18 @@
             <div class="card">
               <div class="setting-head">
                 <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-palette"/></svg></span>
-                <div><h2 class="card-title">المظهر</h2><p class="card-sub">اختر الوضع المناسب لك.</p></div>
+                <div><h2 class="card-title">المظهر</h2><p class="card-sub">اختر الوضع واللغة المناسبين لك.</p></div>
               </div>
               <div class="card-body">
                 <div class="theme-options" id="themeOptions">
                   <button type="button" data-theme-option="light"><svg class="icon"><use href="icons.svg#i-sun"/></svg>فاتح</button>
                   <button type="button" data-theme-option="dark"><svg class="icon"><use href="icons.svg#i-moon"/></svg>داكن</button>
                   <button type="button" data-theme-option="system"><svg class="icon"><use href="icons.svg#i-settings"/></svg>حسب الجهاز</button>
+                </div>
+                <p class="field-label lang-label">اللغة</p>
+                <div class="theme-options lang-options" data-no-i18n>
+                  <button type="button" data-lang-option="ar" onclick="I18N.set('ar')">العربية</button>
+                  <button type="button" data-lang-option="en" onclick="I18N.set('en')">English</button>
                 </div>
               </div>
             </div>
@@ -531,7 +538,7 @@
                 </div>
                 <div class="remind-side">
                   <div class="sms-preview">
-                    <div class="sms-bubble" id="remindPreview"></div>
+                    <div class="sms-bubble" id="remindPreview" dir="rtl" lang="ar" data-no-i18n></div>
                     <div class="card-sub" id="remindCount"></div>
                   </div>
                   <div class="status-line" id="remindDue"></div>
