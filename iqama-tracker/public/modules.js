@@ -730,7 +730,8 @@ const Modules = (() => {
       loadOverview().catch(() => {});
     };
     $('dBody').querySelector('[data-employment="active"]')?.addEventListener('click', async () => {
-      if (!(await confirmDialog(`إعادة ${r.name} للعمل؟ سيظهر مرة أخرى في التنبيهات والأرقام.`))) return;
+      if (!(await confirmDialog(`سيظهر ${r.name} مرة أخرى في التنبيهات والأرقام.`,
+        { title: 'إعادة للعمل؟', ok: 'إعادة للعمل', iconName: 'user', danger: false }))) return;
       try {
         refreshEmployee(await api(`/api/residencies/${r.id}/employment`, { method: 'PUT', body: JSON.stringify({ status: 'active' }) }));
         toast('تمت إعادة الموظف للعمل');

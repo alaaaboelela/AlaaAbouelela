@@ -761,6 +761,7 @@ dialog.closing::backdrop { animation: fade-out .2s ease forwards; }
 #confirmModal .confirm-body { padding: 28px 24px 8px; }
 #confirmModal .confirm-icon { display: inline-grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: var(--danger-soft); color: var(--danger); margin-bottom: 14px; }
 #confirmModal .confirm-icon .icon { width: 26px; height: 26px; }
+#confirmModal .confirm-icon.neutral { background: var(--brand-soft); color: var(--brand); }
 #confirmModal h2 { font-size: 17px; margin-bottom: 6px; }
 #confirmModal p { color: var(--text-2); font-size: 14px; }
 #confirmModal .modal-foot { justify-content: center; border-top: 0; background: none; padding-bottom: 24px; }
@@ -1465,3 +1466,24 @@ img.initials { object-fit: cover; background: var(--surface-3); }
 .emp-hero-text small { color: var(--text-2); }
 .link-btn { align-self: flex-start; padding: 0; border: 0; background: none; color: var(--danger); font: inherit; font-size: 12.5px; cursor: pointer; }
 .link-btn:hover { text-decoration: underline; }
+
+/* تذكير الموظفين بالـ SMS */
+.settings-grid .wide-card { grid-column: 1 / -1; }
+.remind-body { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 28px; }
+.remind-form { display: flex; flex-direction: column; gap: 8px; }
+.remind-form .check-row { margin-bottom: 4px; }
+.remind-form .chips { margin-top: 0; }
+.remind-form .inline-row { margin-top: 8px; }
+.field-label { font-size: 13px; font-weight: 600; color: var(--text-2); margin-top: 6px; }
+.sms-preview { background: var(--surface-3); border-radius: 16px; padding: 16px; margin-bottom: 14px; }
+.sms-bubble { background: var(--surface); border: 1px solid var(--border); border-radius: 18px 18px 18px 4px; padding: 12px 14px;
+  font-size: 14px; line-height: 1.7; white-space: pre-wrap; max-width: 34ch; margin-bottom: 8px; box-shadow: 0 1px 2px rgb(15 27 45 / .06); }
+.remind-log-title { font-size: 13.5px; font-weight: 600; margin: 18px 0 8px; }
+.remind-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow: auto; }
+.remind-log li { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.remind-log li:last-child { border-bottom: 0; }
+.remind-log .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.remind-log .when { color: var(--muted); font-size: 12px; white-space: nowrap; }
+@media (max-width: 900px) { .remind-body { grid-template-columns: 1fr; } }
+.remind-test { margin-top: 10px; }
+.remind-test .input { flex: 1; min-width: 0; max-width: 200px; direction: ltr; text-align: right; }

@@ -29,9 +29,9 @@ function normalizePhone(v) {
 
 const mask = (p) => (p.length > 6 ? `${p.slice(0, 5)}•••${p.slice(-3)}` : p);
 
-function smsEnabled() {
+// حساب مزود الرسائل مضبوط (بغض النظر عن أرقام المسؤولين)
+function smsProviderReady() {
   const c = config.sms;
-  if (!config.alertPhones.length) return false;
   switch (c.provider) {
     case 'unifonic': return Boolean(c.unifonicAppSid);
     case 'taqnyat': return Boolean(c.taqnyatToken && c.sender);
@@ -39,6 +39,10 @@ function smsEnabled() {
     case 'webhook': return Boolean(c.webhookUrl);
     default: return false;
   }
+}
+
+function smsEnabled() {
+  return Boolean(config.alertPhones.length) && smsProviderReady();
 }
 
 function whatsappEnabled() {
@@ -49,7 +53,7 @@ function whatsappEnabled() {
 function status() {
   return {
     phones: config.alertPhones.map((p) => (normalizePhone(p) ? mask(normalizePhone(p)) : `${p} (رقم غير صحيح)`)),
-    sms: { enabled: smsEnabled(), provider: PROVIDERS[config.sms.provider] || null },
+    sms: { enabled: smsEnabled(), ready: smsProviderReady(), provider: PROVIDERS[config.sms.provider] || null },
     whatsapp: { enabled: whatsappEnabled(), template: config.whatsapp.template || null },
   };
 }
@@ -66,7 +70,7 @@ function check(res, provider) {
 async function sendSms(phones, text) {
   const c = config.sms;
   const to = phones.map(normalizePhone).filter(Boolean);
-  if (!to.length) throw new Error('لا توجد أرقام جوال صحيحة في ALERT_PHONES');
+  if (!to.length) throw new Error('لا توجد أرقام جوال صحيحة');
   switch (c.provider) {
     case 'unifonic':
       for (const p of to) {
@@ -147,4 +151,4 @@ function buildSummary({ total, alertDays, expired: expiredCount, items = [] }, m
   return `تنبيه منصة الإقامات\n${lines.join('\n')}\nالتفاصيل في المنصة.`;
 }
 
-module.exports = { normalizePhone, smsEnabled, whatsappEnabled, status, sendSms, sendWhatsapp, buildSummary, setTransport };
+module.exports = { normalizePhone, smsProviderReady, smsEnabled, whatsappEnabled, status, sendSms, sendWhatsapp, buildSummary, setTransport };

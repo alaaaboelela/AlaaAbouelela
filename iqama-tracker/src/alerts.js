@@ -159,15 +159,22 @@ async function dailyCheck() {
       console.error(`فشل إرسال تنبيه ${ch.label}:`, err.message);
     }
   }
+  try {
+    const r = await require('./reminders').dailyRun();
+    if (r?.sent || r?.failed) console.log(`تذكير الموظفين بالـ SMS: ${r.sent} رسالة${r.failed ? `، ${r.failed} فشلت (${r.error})` : ''}`);
+  } catch (err) {
+    console.error('فشل تذكير الموظفين بالـ SMS:', err.message);
+  }
 }
 
 function startScheduler() {
   const active = CHANNELS.filter((ch) => ch.enabled());
-  if (!active.length) {
+  // تذكير الموظفين يحتاج حساب SMS بس (بيتفعّل من الإعدادات)
+  if (!active.length && !notify.smsProviderReady()) {
     console.log('التنبيهات اليومية غير مفعلة (اضبطي الإيميل أو SMS أو واتساب في ملف .env)');
     return;
   }
-  console.log(`التنبيهات اليومية مفعلة: ${active.map((ch) => ch.label).join('، ')}`);
+  console.log(`التنبيهات اليومية مفعلة: ${[...active.map((ch) => ch.label), ...(notify.smsProviderReady() ? ['تذكير الموظفين (حسب الإعدادات)'] : [])].join('، ')}`);
   dailyCheck();
   setInterval(dailyCheck, 60 * 60 * 1000).unref();
 }

@@ -289,3 +289,22 @@ ALTER TABLE residencies ADD COLUMN IF NOT EXISTS employment_status TEXT NOT NULL
 ALTER TABLE residencies ADD COLUMN IF NOT EXISTS left_date DATE;
 ALTER TABLE residencies ADD COLUMN IF NOT EXISTS left_reason TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS residencies_active_idx ON residencies (employment_status, expiry_date);
+
+-- ==========================================================================
+-- تذكير الموظف نفسه برسالة SMS قبل انتهاء إقامته (سجل لكل رسالة، مرة لكل موعد وتاريخ انتهاء)
+-- ==========================================================================
+
+CREATE TABLE IF NOT EXISTS employee_notices (
+  id           BIGSERIAL PRIMARY KEY,
+  residency_id BIGINT NOT NULL REFERENCES residencies (id) ON DELETE CASCADE,
+  expiry_date  DATE NOT NULL,
+  threshold    INT NOT NULL,
+  phone        TEXT NOT NULL DEFAULT '',
+  message      TEXT NOT NULL DEFAULT '',
+  status       TEXT NOT NULL DEFAULT 'sent',
+  error        TEXT NOT NULL DEFAULT '',
+  attempts     INT NOT NULL DEFAULT 1,
+  sent_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (residency_id, expiry_date, threshold)
+);
+CREATE INDEX IF NOT EXISTS employee_notices_sent_idx ON employee_notices (sent_at DESC);

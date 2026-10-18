@@ -450,6 +450,52 @@
               </div>
             </div>
 
+            <div class="card wide-card" id="remindCard" hidden>
+              <div class="setting-head">
+                <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-user"/></svg></span>
+                <div><h2 class="card-title">تذكير الموظفين برسالة SMS</h2><p class="card-sub">رسالة للموظف نفسه على جواله قبل انتهاء إقامته، مرة واحدة عند كل موعد. لو الإقامة اتجددت، التذكير يبدأ من جديد مع التاريخ الجديد.</p></div>
+              </div>
+              <div class="card-body remind-body">
+                <div class="remind-form">
+                  <div class="status-line" id="remindProvider"></div>
+                  <label class="check-row"><input type="checkbox" id="remindEnabled"> <span>تفعيل التذكير التلقائي يوميًا</span></label>
+                  <label class="field-label" for="remindDays">قبل الانتهاء بـ (يوم)</label>
+                  <input class="input" id="remindDays" placeholder="30، 7" inputmode="numeric" style="max-width:160px">
+                  <p class="card-sub">لحد 3 مواعيد مفصولة بفاصلة، مثلًا 30، 7</p>
+                  <label class="field-label" for="remindTemplate">نص الرسالة</label>
+                  <textarea class="input" id="remindTemplate" rows="4" maxlength="480"></textarea>
+                  <div class="chips" id="remindVars">
+                    <button type="button" data-var="{الاسم}">الاسم</button>
+                    <button type="button" data-var="{رقم_الإقامة}">رقم الإقامة</button>
+                    <button type="button" data-var="{تاريخ_الانتهاء}">تاريخ الانتهاء</button>
+                    <button type="button" data-var="{التاريخ_الهجري}">التاريخ الهجري</button>
+                    <button type="button" data-var="{المتبقي}">المتبقي (بعد 7 أيام / غدًا)</button>
+                    <button type="button" data-var="{الأيام}">عدد الأيام</button>
+                    <button type="button" data-var="{المنشأة}">اسم المنشأة</button>
+                  </div>
+                  <div class="inline-row">
+                    <button class="btn btn-primary" id="remindSave" type="button">حفظ</button>
+                    <button class="btn btn-ghost" id="remindReset" type="button">النص الافتراضي</button>
+                  </div>
+                </div>
+                <div class="remind-side">
+                  <div class="sms-preview">
+                    <div class="sms-bubble" id="remindPreview"></div>
+                    <div class="card-sub" id="remindCount"></div>
+                  </div>
+                  <div class="status-line" id="remindDue"></div>
+                  <div class="status-line" id="remindLastRun" hidden></div>
+                  <button class="btn btn-ghost" id="remindRun" type="button"><svg class="icon"><use href="icons.svg#i-send"/></svg>إرسال المستحق الآن</button>
+                  <div class="inline-row remind-test">
+                    <input class="input" id="remindTestPhone" placeholder="05xxxxxxxx" inputmode="tel" aria-label="رقم جوال للتجربة">
+                    <button class="btn btn-ghost" id="remindTest" type="button">رسالة تجربة</button>
+                  </div>
+                  <h3 class="remind-log-title">آخر الرسائل</h3>
+                  <ul class="remind-log" id="remindLog"></ul>
+                </div>
+              </div>
+            </div>
+
             <div class="card" id="backupCard" hidden>
               <div class="setting-head">
                 <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-shield-user"/></svg></span>
@@ -631,8 +677,8 @@
   <!-- نافذة تأكيد الحذف -->
   <dialog id="confirmModal">
     <div class="confirm-body">
-      <span class="confirm-icon"><svg class="icon"><use href="icons.svg#i-trash"/></svg></span>
-      <h2>حذف الإقامة؟</h2>
+      <span class="confirm-icon" id="confirmIcon"><svg class="icon"><use href="icons.svg#i-trash"/></svg></span>
+      <h2 id="confirmTitle">حذف الإقامة؟</h2>
       <p id="confirmText"></p>
     </div>
     <div class="modal-foot">

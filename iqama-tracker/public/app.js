@@ -194,8 +194,13 @@ for (const dialog of $$('dialog')) {
   });
 }
 
-function confirmDialog(text) {
+function confirmDialog(text, { title = 'تأكيد الحذف', ok = 'حذف نهائي', iconName = 'trash', danger = true } = {}) {
   $('confirmText').textContent = text;
+  $('confirmTitle').textContent = title;
+  $('confirmDelete').textContent = ok;
+  $('confirmDelete').className = `btn ${danger ? 'btn-danger' : 'btn-primary'}`;
+  $('confirmIcon').innerHTML = icon(iconName);
+  $('confirmIcon').classList.toggle('neutral', !danger);
   openModal($('confirmModal'));
   return new Promise((resolve) => {
     const dialog = $('confirmModal');
@@ -524,7 +529,7 @@ $('rows').addEventListener('click', async (e) => {
   if (edit) openForm(state.items.find((r) => r.id === edit.dataset.edit));
   if (del) {
     const r = state.items.find((x) => x.id === del.dataset.delete);
-    if (!(await confirmDialog(`سيتم حذف إقامة "${r.name}" (${r.iqamaNumber}) نهائيًا ولا يمكن التراجع.`))) return;
+    if (!(await confirmDialog(`سيتم حذف إقامة "${r.name}" (${r.iqamaNumber}) نهائيًا ولا يمكن التراجع.`, { title: 'حذف الإقامة؟' }))) return;
     try {
       await api(`/api/residencies/${r.id}`, { method: 'DELETE' });
       toast('تم حذف الإقامة');
@@ -717,7 +722,114 @@ async function loadSettings() {
   renderPwaStatus();
   renderThemeOptions();
   loadBackup();
+  loadReminders();
 }
+
+// ---------- تذكير الموظفين بالـ SMS ----------
+
+let remind = null;
+
+function renderRemindPreview() {
+  if (!remind) return;
+  const text = ($('remindTemplate').value.trim() || remind.defaultTemplate)
+    .replace(/\{[^{}]+\}/g, (k) => remind.sample[k] ?? k).replace(/[ \t]+/g, ' ').trim();
+  $('remindPreview').textContent = text;
+  // العربي يتبعت Unicode: 70 حرف للرسالة الواحدة و67 لكل جزء لو أطول
+  // eslint-disable-next-line no-control-regex
+  const unicode = /[^\x00-\x7F]/.test(text);
+  const [one, part] = unicode ? [70, 67] : [160, 153];
+  const parts = text.length <= one ? 1 : Math.ceil(text.length / part);
+  $('remindCount').textContent = `${fmt(text.length)} حرف · ${parts === 1 ? 'رسالة واحدة' : `${fmt(parts)} رسائل`} لكل موظف`;
+}
+
+// موعد التذكير بصياغة طبيعية: قبلها بيوم / قبل 7 أيام / قبل 30 يوم
+function beforeText(n) {
+  if (n === 0) return 'يوم الانتهاء';
+  if (n === 1) return 'قبلها بيوم';
+  if (n === 2) return 'قبلها بيومين';
+  return `قبل ${fmt(n)} ${n <= 10 ? 'أيام' : 'يوم'}`;
+}
+
+async function loadReminders() {
+  const card = $('remindCard');
+  card.hidden = !can('settings', 'read');
+  if (card.hidden) return;
+  try {
+    remind = await api('/api/reminders');
+  } catch {
+    card.hidden = true;
+    return;
+  }
+  const r = remind;
+  $('remindProvider').innerHTML = r.providerReady
+    ? `<b>المزود:</b> <span class="pill valid">${icon('check', 'icon-sm')}جاهز</span> ${esc(r.provider)}`
+    : '<b>المزود:</b> <span class="pill neutral">غير مضبوط</span> اضبطي <span class="mono">SMS_PROVIDER</span> وبيانات الحساب في ملف <span class="mono">.env</span>';
+  $('remindEnabled').checked = r.enabled;
+  $('remindEnabled').disabled = !r.providerReady && !r.enabled;
+  $('remindDays').value = r.days.join('، ');
+  $('remindTemplate').value = r.template;
+  renderRemindPreview();
+  $('remindDue').innerHTML = `<b>المستحق الآن:</b> ${fmt(r.due)} موظف${r.noPhone ? ` <span class="muted">(و${fmt(r.noPhone)} بدون رقم جوال صحيح)</span>` : ''}`;
+  $('remindLastRun').hidden = !r.lastRun;
+  if (r.lastRun) {
+    $('remindLastRun').innerHTML = `<b>آخر إرسال:</b> ${esc(fmtStamp(r.lastRun.at))} · اتبعت ${fmt(r.lastRun.sent)}${r.lastRun.failed ? ` · <span class="pill expired sm">فشل ${fmt(r.lastRun.failed)}</span>` : ''}`;
+  }
+  $('remindRun').disabled = !r.providerReady || !r.due;
+  $('remindTest').disabled = !r.providerReady;
+  $('remindLog').innerHTML = r.recent.length
+    ? r.recent.map((n) => `<li>${n.status === 'sent' ? `<span class="pill valid sm">${icon('check', 'icon-sm')}اتبعتت</span>` : `<span class="pill expired sm" title="${esc(n.error)}">فشلت</span>`}
+        <span class="who">${esc(n.name)} <span class="muted">· ${beforeText(n.threshold)}</span></span><span class="when">${esc(fmtStamp(n.sent_at))}</span></li>`).join('')
+    : '<li class="muted">لم تُرسل أي رسالة بعد</li>';
+}
+
+$('remindTemplate').addEventListener('input', renderRemindPreview);
+for (const b of $$('#remindVars [data-var]')) {
+  b.addEventListener('click', () => {
+    const t = $('remindTemplate');
+    const at = t.selectionStart ?? t.value.length;
+    t.value = t.value.slice(0, at) + b.dataset.var + t.value.slice(t.selectionEnd ?? at);
+    t.focus();
+    t.selectionStart = t.selectionEnd = at + b.dataset.var.length;
+    renderRemindPreview();
+  });
+}
+$('remindReset').addEventListener('click', () => {
+  $('remindTemplate').value = remind.defaultTemplate;
+  renderRemindPreview();
+});
+$('remindSave').addEventListener('click', async () => {
+  try {
+    await api('/api/reminders', {
+      method: 'PUT',
+      body: JSON.stringify({ enabled: $('remindEnabled').checked, days: $('remindDays').value, template: $('remindTemplate').value }),
+    });
+    toast($('remindEnabled').checked ? 'تم الحفظ، والتذكير هيتبعت يوميًا' : 'تم الحفظ');
+    loadReminders();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+});
+$('remindRun').addEventListener('click', async () => {
+  if (!(await confirmDialog(`هيتبعت ${fmt(remind.due)} رسالة SMS للموظفين المستحقين دلوقتي، كل موظف على جواله.`,
+    { title: 'إرسال التذكير الآن؟', ok: 'إرسال', iconName: 'send', danger: false }))) return;
+  const btn = $('remindRun');
+  btn.disabled = true;
+  try {
+    const res = await api('/api/reminders/run', { method: 'POST' });
+    toast(res.failed ? `اتبعت ${fmt(res.sent)} وفشل ${fmt(res.failed)}: ${res.error}` : `تم الإرسال: ${fmt(res.sent)} موظف`, res.failed ? 'error' : 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+  loadReminders();
+});
+$('remindTest').addEventListener('click', async () => {
+  try {
+    await api('/api/reminders/test', { method: 'POST', body: JSON.stringify({ phone: $('remindTestPhone').value }) });
+    toast('تم إرسال رسالة التجربة');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+});
 
 // ---------- النسخ الاحتياطي (مدير النظام بدون تقييد فرع) ----------
 
