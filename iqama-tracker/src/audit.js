@@ -11,6 +11,8 @@ const ACTIONS = {
   login_failed: 'محاولة دخول فاشلة',
   password: 'تغيير كلمة المرور',
   settings: 'تعديل الإعدادات',
+  backup: 'نسخة احتياطية',
+  restore: 'استعادة نسخة احتياطية',
 };
 
 function log(req, action, entityType, entityId, summary, details) {

@@ -96,6 +96,35 @@ sudo -u postgres psql -d iqama -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
 
 (الأمر الأخير محتاج صلاحية superuser مرة واحدة فقط.)
 
+## النسخ الاحتياطي
+
+- **يوميًا على السيرفر (تلقائي):** قاعدة البيانات والمستندات في `/var/backups/iqama` (آخر 14 يوم).
+- **خارج السيرفر (مرة واحدة):** ربط Google Drive أو OneDrive أو Dropbox أو S3 أو سيرفر تاني، والنسخة اليومية تترفع عليه تلقائيًا وتفضل 60 يوم:
+  ```bash
+  sudo bash /opt/iqama/app/iqama-tracker/deploy/setup-offsite-backup.sh
+  ```
+- **من المنصة:** الإعدادات ← النسخ الاحتياطي ← "تنزيل نسخة احتياطية" (لمدير النظام بس): ملف ZIP واحد فيه كل الجداول والمستندات والصور. بيبيّن كمان حالة آخر نسخة تلقائية وهل اترفعت بره.
+
+### الاستعادة
+
+من ملف ZIP اللي نزل من المنصة (يشتغل على PostgreSQL أو القاعدة المدمجة، ومن أي واحدة للتانية):
+
+```bash
+sudo systemctl stop iqama
+cd /opt/iqama/app/iqama-tracker && sudo -u iqama npm run restore -- /tmp/iqama-backup-2026-10-18.zip
+sudo systemctl start iqama
+```
+
+من النسخة اليومية على السيرفر (`pg_dump`):
+
+```bash
+sudo systemctl stop iqama
+sudo -u postgres dropdb iqama && sudo -u postgres createdb -O iqama iqama
+gunzip -c /var/backups/iqama/db-2026-10-18.sql.gz | sudo -u postgres psql -q iqama
+sudo tar xzf /var/backups/iqama/uploads-2026-10-18.tgz -C /opt/iqama && sudo chown -R iqama:iqama /opt/iqama/uploads
+sudo systemctl start iqama
+```
+
 ## الاستيراد من Excel
 
 احفظي الشيت كـ **CSV UTF-8** وخلي أول صف عناوين. الأعمدة المقبولة:
@@ -152,13 +181,14 @@ sudo -u postgres psql -d iqama -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
 | GET / DELETE | `/api/documents/:id/file` ، `/api/documents/:id` | تنزيل / حذف |
 | GET | `/api/employees?q=` ، `/api/employees/:id/summary` | البحث عن موظف / ملفه الشامل |
 | GET | `/api/overview` | ملخص كل الأقسام للوحة المتابعة |
+| GET | `/api/backup` ، `/api/backup/download?files=0` | حالة النسخ الاحتياطي / تنزيل نسخة كاملة (مدير النظام) |
 
 ## النشر على سيرفر
 
 - شغليه بـ `NODE_ENV=production` و `SESSION_SECRET` عشوائي طويل.
 - خليه ورا **HTTPS** (Nginx أو Caddy) لأن الكوكي في الإنتاج `Secure`.
 - استخدمي `pm2` أو `systemd` عشان يفضل شغال ويرجع بعد إعادة التشغيل (الإيميل اليومي محتاج السيرفر شغال).
-- خدي نسخة احتياطية يومية من قاعدة البيانات: `pg_dump iqama > backup.sql`، **ومن مجلد `uploads/`** (فيه المستندات).
+- خدي نسخة احتياطية يومية من قاعدة البيانات: `pg_dump iqama > backup.sql`، **ومن مجلد `uploads/`** (فيه المستندات)، أو استخدمي `deploy/backup.sh` (شوفي [النسخ الاحتياطي](#النسخ-الاحتياطي)).
 
 ## الاختبارات
 

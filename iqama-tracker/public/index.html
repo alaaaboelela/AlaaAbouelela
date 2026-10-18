@@ -450,6 +450,20 @@
               </div>
             </div>
 
+            <div class="card" id="backupCard" hidden>
+              <div class="setting-head">
+                <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-shield-user"/></svg></span>
+                <div><h2 class="card-title">النسخ الاحتياطي</h2><p class="card-sub">نسخة كاملة من كل البيانات والمستندات في ملف واحد. احفظيها على جهازك أو فلاشة بعيد عن السيرفر.</p></div>
+              </div>
+              <div class="card-body">
+                <div class="status-line" id="backupServer"></div>
+                <div class="status-line" id="backupRemote" hidden></div>
+                <div class="status-line" id="backupLast"></div>
+                <label class="check-row"><input type="checkbox" id="backupFiles" checked> <span>مع المستندات والصور <span class="card-sub" id="backupFilesSize"></span></span></label>
+                <button class="btn btn-primary" id="backupDownload" type="button"><svg class="icon"><use href="icons.svg#i-download"/></svg>تنزيل نسخة احتياطية</button>
+              </div>
+            </div>
+
             <div class="card">
               <div class="setting-head">
                 <span class="setting-icon"><svg class="icon"><use href="icons.svg#i-send"/></svg></span>

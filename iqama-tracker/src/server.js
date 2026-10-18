@@ -9,6 +9,7 @@ const alerts = require('./alerts');
 const notify = require('./notify');
 const { router: users } = require('./users');
 const { router: reports } = require('./reports');
+const { router: backup } = require('./backup');
 const { can, permissionsFor, ROLES } = require('./permissions');
 
 // القسم المطلوب لكل مسار (null = متاح لأي مستخدم مسجّل)
@@ -78,6 +79,7 @@ function createApp() {
   app.use('/api', residencies);
   app.use('/api', modules);
   app.use('/api', reports);
+  app.use('/api', backup);
 
   app.get('/api/alerts', async (req, res) => {
     res.json({ ...(await alerts.collectAlerts(req.branch)), emailEnabled: alerts.emailEnabled() });

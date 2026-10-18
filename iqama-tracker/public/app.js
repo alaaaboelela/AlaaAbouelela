@@ -716,7 +716,56 @@ async function loadSettings() {
   renderNotifyStatus();
   renderPwaStatus();
   renderThemeOptions();
+  loadBackup();
 }
+
+// ---------- النسخ الاحتياطي (مدير النظام بدون تقييد فرع) ----------
+
+const fmtStamp = (iso) => new Date(iso).toLocaleString('ar-SA-u-ca-gregory-nu-latn', {
+  day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Riyadh',
+});
+const fmtSize = (b) => (b >= 1073741824 ? `${(b / 1073741824).toFixed(1)} ج.ب` : b >= 1048576 ? `${(b / 1048576).toFixed(1)} م.ب` : `${Math.max(1, Math.round(b / 1024))} ك.ب`);
+
+async function loadBackup() {
+  const card = $('backupCard');
+  card.hidden = state.me.role !== 'admin' || Boolean(state.me.branch);
+  if (card.hidden) return;
+  let b;
+  try {
+    b = await api('/api/backup');
+  } catch {
+    card.hidden = true;
+    return;
+  }
+  const s = b.server;
+  const age = s ? (Date.now() - new Date(s.time)) / 86400000 : 0;
+  $('backupServer').innerHTML = !b.serverConfigured
+    ? '<b>تلقائي:</b> <span class="pill neutral">غير مفعّل</span> النسخ اليومي بيشتغل على السيرفر بعد التثبيت بسكربت <span class="mono">install.sh</span>'
+    : !s ? '<b>تلقائي:</b> <span class="pill neutral">لم تتم أي نسخة بعد</span>'
+      : `<b>تلقائي:</b> ${s.ok && age < 2 ? `<span class="pill valid">${icon('check', 'icon-sm')}يعمل</span>` : `<span class="pill expired">${s.ok ? 'متوقف' : 'فشل'}</span>`}
+        <span>آخر نسخة ${esc(fmtStamp(s.time))} · ${fmtSize(s.size)}</span>${s.error ? `<span class="muted">${esc(s.error)}</span>` : ''}`;
+  $('backupRemote').hidden = !s;
+  if (s) {
+    $('backupRemote').innerHTML = `<b>خارج السيرفر:</b> ${!s.remote
+      ? '<span class="pill neutral">غير مضبوط</span> <span>اربطيه بـ Google Drive بسكربت <span class="mono">setup-offsite-backup.sh</span></span>'
+      : `${s.remoteOk ? `<span class="pill valid">${icon('check', 'icon-sm')}مرفوعة</span>` : '<span class="pill expired">فشل الرفع</span>'} <span class="mono">${esc(s.remote)}</span>`}`;
+  }
+  $('backupLast').innerHTML = b.lastDownload
+    ? `<b>آخر تنزيل:</b> ${esc(fmtStamp(b.lastDownload.at))} بواسطة ${esc(b.lastDownload.user)}${b.lastDownload.files ? '' : ' (بدون المستندات)'}`
+    : '<b>آخر تنزيل:</b> <span class="muted">لم يتم تنزيل نسخة من هنا بعد</span>';
+  $('backupFilesSize').textContent = `(${fmt(b.files)} ملف · ${fmtSize(b.filesSize)})`;
+}
+
+$('backupDownload').addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.href = `/api/backup/download?files=${$('backupFiles').checked ? 1 : 0}`;
+  a.download = '';
+  document.body.append(a);
+  a.click();
+  a.remove();
+  toast('جاري تجهيز النسخة… هتنزل خلال ثواني', 'info');
+  setTimeout(loadBackup, 4000);
+});
 
 function renderPwaStatus() {
   const st = PWA.state();

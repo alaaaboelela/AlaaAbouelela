@@ -137,6 +137,7 @@ SMTP_PASS=$SMTP_PASS
 SMTP_FROM=$SMTP_USER
 ALERT_EMAILS=$ALERT_EMAILS
 ALERT_HOUR=8
+BACKUP_STATUS_FILE=$BASE/backup-status.json
 ENV
 umask 022
 chown $APP_USER:$APP_USER "$ENV_FILE"
@@ -219,15 +220,19 @@ fi
 step "النسخ الاحتياطي اليومي"
 mkdir -p $BACKUP_DIR
 chmod 700 $BACKUP_DIR
+# السكربت نفسه جوه البرنامج (deploy/backup.sh) فبيتحدّث مع كل تحديث
 cat > /etc/cron.daily/iqama-backup <<BACKUP
 #!/bin/sh
-set -e
-D=\$(date +%F)
-sudo -u postgres pg_dump $DB_NAME | gzip > $BACKUP_DIR/db-\$D.sql.gz
-tar czf $BACKUP_DIR/uploads-\$D.tgz -C $BASE uploads
-find $BACKUP_DIR -type f -mtime +14 -delete
+exec bash $APP_DIR/deploy/backup.sh
 BACKUP
 chmod 755 /etc/cron.daily/iqama-backup
+if [[ ! -f /etc/iqama/backup.conf ]]; then
+  ask OFFSITE "تحبي تضبطي نسخة يومية خارج السيرفر (Google Drive وغيره) دلوقتي؟ [y/N]: " n
+  if [[ $OFFSITE =~ ^[Yy] ]]; then
+    bash "$APP_DIR/deploy/setup-offsite-backup.sh" || yellow "تقدري تضبطيها بعدين: sudo bash $APP_DIR/deploy/setup-offsite-backup.sh"
+  fi
+fi
+bash "$APP_DIR/deploy/backup.sh" >/dev/null || yellow "أول نسخة احتياطية فشلت، راجعي: sudo bash $APP_DIR/deploy/backup.sh"
 
 # ---------- النتيجة ----------
 
@@ -246,6 +251,8 @@ if systemctl is-active --quiet $SERVICE; then
   echo "التحديث لاحقًا:   sudo bash $APP_DIR/deploy/update.sh"
   echo "سجل البرنامج:     sudo journalctl -u $SERVICE -f"
   echo "النسخ الاحتياطية: $BACKUP_DIR (يوميًا، آخر 14 يوم)"
+  [[ -f /etc/iqama/backup.conf ]] && echo "ونسخة خارج السيرفر: $(sed -n 's/^REMOTE="\(.*\)"/\1/p' /etc/iqama/backup.conf)" \
+    || echo "نسخة خارج السيرفر:  sudo bash $APP_DIR/deploy/setup-offsite-backup.sh"
 else
   red "البرنامج لم يعمل. السجل:"
   journalctl -u $SERVICE -n 30 --no-pager

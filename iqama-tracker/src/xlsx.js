@@ -267,4 +267,4 @@ function parseDateCell(v) {
   return iso;
 }
 
-module.exports = { writeXlsx, readXlsx, readTable, isXlsx, serialToIso, parseDateCell, toLatinDigits, crc32 };
+module.exports = { writeXlsx, readXlsx, readTable, isXlsx, serialToIso, parseDateCell, toLatinDigits, crc32, unzip };
