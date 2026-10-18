@@ -53,7 +53,8 @@ const Modules = (() => {
       }
       case 'person':
         return `<div class="person"><span class="initials">${esc(initials(v || '؟'))}</span>
-          <div><strong>${esc(v)}</strong><small class="mono">${esc(r[col.sub] || '')}</small></div></div>`;
+          <div><strong>${esc(v)}</strong><small class="mono">${esc(r[col.sub] || '')}</small>
+          ${r.employee_employment === 'left' ? '<span class="pill neutral sm">ترك العمل</span>' : ''}</div></div>`;
       case 'plate': {
         const sub = (col.sub || []).map((k) => r[k]).filter(Boolean).join(' · ');
         return `<span class="plate">${esc(v)}</span>${sub ? `<span class="sub">${esc(sub)}</span>` : ''}`;
@@ -340,6 +341,31 @@ const Modules = (() => {
   const displayNameFor = (record, f) => record?.[f.name.replace(/_id$/, '_name')];
 
   let formCtx = null;
+  let employmentReasons = null;
+  let employmentTarget = null;
+
+  $('employmentForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const showError = (msg) => {
+      $('employmentError').querySelector('span').textContent = msg;
+      $('employmentError').hidden = false;
+    };
+    if (!f.elements.leftReason.value) return showError('اختر سبب ترك العمل');
+    try {
+      const { r, done } = employmentTarget;
+      const updated = await api(`/api/residencies/${r.id}/employment`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'left', leftDate: f.elements.leftDate.value, leftReason: f.elements.leftReason.value }),
+      });
+      closeModal($('employmentModal'));
+      toast('تم نقل الموظف للأرشيف');
+      done(updated);
+    } catch (err) {
+      showError(err.message);
+    }
+    return undefined;
+  });
   function openForm(key, record, onSaved) {
     const m = schema[key];
     formCtx = { key, record, onSaved };
@@ -664,6 +690,11 @@ const Modules = (() => {
           <strong>${esc(r.name)}</strong>
           <small>${esc([r.nationality, r.branchName, r.employer].filter(Boolean).join(' · ') || '—')}</small>
           ${canEdit && r.photo ? '<button class="link-btn" type="button" data-photo-remove>حذف الصورة</button>' : ''}
+          ${r.employment === 'left' ? `<div class="emp-left-banner"><span class="pill neutral">ترك العمل</span>
+            <small>${esc(fmtGregorian(r.leftDate, 'short'))} · ${esc(r.leftReason)}</small></div>` : ''}
+          ${canEdit ? `<div class="employment-actions">${r.employment === 'left'
+    ? `<button class="btn btn-ghost btn-sm" type="button" data-employment="active">${icon('check', 'icon-sm')}إعادة للعمل</button>`
+    : `<button class="btn btn-ghost btn-sm" type="button" data-employment="left">${icon('logout', 'icon-sm')}إنهاء الخدمة</button>`}</div>` : ''}
         </div>
       </div>
       <div class="summary-strip">
@@ -690,6 +721,40 @@ const Modules = (() => {
       ${list('evaluations', s.evaluations, (x) => `<div><strong class="stars-cell">${stars(x.score)}</strong><small class="muted">${esc(fmtGregorian(x.evaluation_date, 'short'))}${x.period ? ` · ${esc(x.period)}` : ''}${x.recommendation ? ` · ${esc(x.recommendation)}` : ''}</small></div>`)}
       ${list('cars', s.cars, (x) => `<div><strong class="plate sm">${esc(x.plate_number)}</strong><small class="muted">${esc([x.make, x.model].filter(Boolean).join(' '))}</small></div>`)}
       <section class="d-section" id="dDocs"></section>`;
+
+    // إنهاء الخدمة (أرشفة) أو الإعادة للعمل
+    const refreshEmployee = (updated) => {
+      Object.assign(r, updated);
+      openEmployee(r);
+      if (state.view === 'residencies') loadList();
+      loadOverview().catch(() => {});
+    };
+    $('dBody').querySelector('[data-employment="active"]')?.addEventListener('click', async () => {
+      if (!(await confirmDialog(`إعادة ${r.name} للعمل؟ سيظهر مرة أخرى في التنبيهات والأرقام.`))) return;
+      try {
+        refreshEmployee(await api(`/api/residencies/${r.id}/employment`, { method: 'PUT', body: JSON.stringify({ status: 'active' }) }));
+        toast('تمت إعادة الموظف للعمل');
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    });
+    $('dBody').querySelector('[data-employment="left"]')?.addEventListener('click', async () => {
+      employmentReasons ||= await api('/api/employment/reasons');
+      const f = $('employmentForm');
+      f.reset();
+      $('employmentError').hidden = true;
+      $('employmentName').textContent = `${r.name} · ${r.iqamaNumber}`;
+      $('employmentReason').innerHTML = `<option value="">— اختر —</option>${employmentReasons.map((x) => `<option>${esc(x)}</option>`).join('')}`;
+      f.elements.leftDate.value = todayIso();
+      // تنبيه بالتصفية قبل الأرشفة
+      const warnings = [];
+      if (remaining > 0) warnings.push(`عليه سلف متبقية بقيمة ${money(remaining)}`);
+      if (held.length) warnings.push(`لديه ${fmt(held.length)} عهدة لم تُرجع بعد`);
+      $('employmentWarning').hidden = !warnings.length;
+      $('employmentWarning').innerHTML = warnings.length ? `${icon('alert', 'icon-sm')} قبل إنهاء الخدمة: ${warnings.map(esc).join('، ')}.` : '';
+      employmentTarget = { r, done: refreshEmployee };
+      openModal($('employmentModal'));
+    });
 
     const afterPhoto = (photo) => {
       r.photo = photo;

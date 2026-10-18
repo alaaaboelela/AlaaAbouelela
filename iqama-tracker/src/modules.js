@@ -57,6 +57,8 @@ const MODULES = {
   },
 
   driver_cards: {
+    // سجلات الموظفين اللي تركوا العمل تختفي من القوائم والتنبيهات (وتظهر في ملفهم)
+    activeOnly: true,
     label: 'بطاقات السائقين',
     singular: 'بطاقة سائق',
     icon: 'steering',
@@ -266,6 +268,8 @@ const MODULES = {
     totals: { value: "sum(t.value * t.quantity) FILTER (WHERE t.returned_date IS NULL)" },
   },
   evaluations: {
+    // سجلات الموظفين اللي تركوا العمل تختفي من القوائم والتنبيهات (وتظهر في ملفهم)
+    activeOnly: true,
     label: 'التقييمات',
     singular: 'تقييم',
     icon: 'star',
@@ -316,6 +320,8 @@ const MODULES = {
     },
   },
   employee_docs: {
+    // سجلات الموظفين اللي تركوا العمل تختفي من القوائم والتنبيهات (وتظهر في ملفهم)
+    activeOnly: true,
     label: 'مستندات الموظفين',
     singular: 'مستند',
     icon: 'passport',
@@ -354,6 +360,8 @@ const MODULES = {
   },
 
   visas: {
+    // سجلات الموظفين اللي تركوا العمل تختفي من القوائم والتنبيهات (وتظهر في ملفهم)
+    activeOnly: true,
     label: 'تأشيرات الخروج والعودة',
     singular: 'تأشيرة',
     icon: 'plane',
@@ -405,6 +413,8 @@ const MODULES = {
   },
 
   leaves: {
+    // سجلات الموظفين اللي تركوا العمل تختفي من القوائم والتنبيهات (وتظهر في ملفهم)
+    activeOnly: true,
     label: 'الإجازات',
     singular: 'إجازة',
     icon: 'sun-palm',
@@ -481,8 +491,8 @@ MODULES.branches = {
     { name: 'notes', label: 'ملاحظات', type: 'textarea' },
   ],
   extra: ({ p, today, alertEnd }) => `
-    (SELECT count(*)::int FROM residencies r WHERE r.branch_id = t.id) AS employees_count,
-    (SELECT count(*)::int FROM residencies r WHERE r.branch_id = t.id
+    (SELECT count(*)::int FROM residencies r WHERE r.branch_id = t.id AND r.employment_status = 'active') AS employees_count,
+    (SELECT count(*)::int FROM residencies r WHERE r.branch_id = t.id AND r.employment_status = 'active'
        AND r.expiry_date <= ${p.add(alertEnd)}::date) AS attention_count,
     (SELECT count(*)::int FROM cars c WHERE c.branch_id = t.id) AS cars_count,
     (SELECT count(*)::int FROM contracts k WHERE k.branch_id = t.id AND k.end_date >= ${p.add(today)}::date) AS contracts_count`,

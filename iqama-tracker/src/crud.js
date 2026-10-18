@@ -82,17 +82,20 @@ async function context(req) {
   return { today: t, alertEnd: addDays(t, alertDays), alertDays, branch: req?.branch || null };
 }
 
-function inner(m, base, { q, id } = {}) {
+// includeLeft: يشمل سجلات الموظفين اللي تركوا العمل (الملف الشامل وفتح سجل بعينه)
+function inner(m, base, { q, id, includeLeft } = {}) {
   const p = params();
   const ctx = { ...base, p };
   const where = [];
   if (id) where.push(`t.id = ${p.add(id)}`);
+  if (m.activeOnly && !includeLeft && !id) where.push("e.employment_status = 'active'");
   if (base.branch) where.push(`${m.branch} = ${p.add(base.branch)}`);
   if (q) {
     const like = p.add(`%${q.replace(/[\\%_]/g, '\\$&')}%`);
     where.push(`(${m.search.map((c) => `${c} ILIKE ${like}`).join(' OR ')})`);
   }
-  const sql = `SELECT t.*, ${m.extra(ctx)}, ${m.status(ctx)} AS status
+  const employment = /residencies e\b/.test(m.from) ? ', e.employment_status AS employee_employment' : '';
+  const sql = `SELECT t.*, ${m.extra(ctx)}${employment}, ${m.status(ctx)} AS status
     FROM ${m.from} ${where.length ? `WHERE ${where.join(' AND ')}` : ''}`;
   return { sql, p, where };
 }
@@ -324,6 +327,7 @@ router.get('/employees', async (req, res) => {
   const { rows } = await pool.query(
     `SELECT id, name, iqama_number FROM residencies
      WHERE ($1 = '' OR name ILIKE $2 OR iqama_number LIKE $2) AND ($3::bigint IS NULL OR branch_id = $3::bigint)
+       AND employment_status = 'active'
      ORDER BY name LIMIT 15`,
     [q, like, req.branch || null],
   );
@@ -335,7 +339,7 @@ async function employeeSummary(req, id) {
   const base = await context(req);
   const section = async (key, cond) => {
     const m = MODULES[key];
-    const { sql, p } = inner(m, base);
+    const { sql, p } = inner(m, base, { includeLeft: true });
     const { rows } = await pool.query(
       `SELECT * FROM (${sql}) x WHERE ${cond.replace('$ID', p.add(id))} ORDER BY ${m.sort} LIMIT 50`,
       p.values,

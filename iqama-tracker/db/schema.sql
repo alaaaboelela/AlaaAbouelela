@@ -283,3 +283,9 @@ CREATE INDEX IF NOT EXISTS cars_branch_idx ON cars (branch_id);
 
 -- صورة الموظف (اسم الملف داخل مجلد الرفع)
 ALTER TABLE residencies ADD COLUMN IF NOT EXISTS photo TEXT;
+
+-- حالة الموظف: على رأس العمل أو ترك العمل (المؤرشف لا يظهر في التنبيهات والأرقام)
+ALTER TABLE residencies ADD COLUMN IF NOT EXISTS employment_status TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE residencies ADD COLUMN IF NOT EXISTS left_date DATE;
+ALTER TABLE residencies ADD COLUMN IF NOT EXISTS left_reason TEXT NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS residencies_active_idx ON residencies (employment_status, expiry_date);

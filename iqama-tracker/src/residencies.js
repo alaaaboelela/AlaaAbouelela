@@ -27,10 +27,15 @@ function params() {
 
 const columns = (todayParam) => `id, name, iqama_number, expiry_date, nationality, phone, employer, notes, annual_leave_days,
   branch_id, (SELECT b.name FROM branches b WHERE b.id = residencies.branch_id) AS branch_name, photo,
+  employment_status, left_date, left_reason,
   created_at, updated_at, (expiry_date - ${todayParam}::date) AS days_left`;
 
 // شرط الفرع الحالي (فارغ = كل الفروع)
 const branchCond = (req, p) => (req.branch ? `branch_id = ${p.add(req.branch)}` : null);
+
+// الموظفون على رأس العمل فقط (اللي ترك العمل في الأرشيف ولا يدخل في التنبيهات والأرقام)
+const ACTIVE = "employment_status = 'active'";
+const LEFT_REASONS = ['استقالة', 'إنهاء خدمة', 'خروج نهائي', 'نقل كفالة', 'انتهاء العقد', 'وفاة', 'أخرى'];
 
 const SORTS = {
   expiry: 'expiry_date ASC, id ASC',
@@ -60,6 +65,9 @@ function toApi(row, alertDays) {
     branchId: row.branch_id == null ? null : String(row.branch_id),
     branchName: row.branch_name || null,
     photo: row.photo ? `/api/residencies/${row.id}/photo?v=${new Date(row.updated_at).getTime()}` : null,
+    employment: row.employment_status || 'active',
+    leftDate: row.left_date || null,
+    leftReason: row.left_reason || '',
     daysLeft: row.days_left,
     status: statusOf(row.days_left, alertDays),
     createdAt: row.created_at,
@@ -99,7 +107,8 @@ function validate(body) {
   }
   if (!name) errors.push('الاسم مطلوب');
   if (name.length > 200) errors.push('الاسم طويل جدا');
-  if (!/^2\d{9}$/.test(iqamaNumber)) errors.push('رقم الإقامة يجب أن يكون 10 أرقام ويبدأ بـ 2');
+  // 2 = إقامة لغير السعوديين، 1 = هوية وطنية (لحساب نسبة السعودة)
+  if (!/^[12]\d{9}$/.test(iqamaNumber)) errors.push('رقم الإقامة يجب أن يكون 10 أرقام ويبدأ بـ 2 (أو رقم الهوية ويبدأ بـ 1)');
   const leaveRaw = str(body.annualLeaveDays);
   const annualLeaveDays = leaveRaw === '' ? 21 : Number(leaveRaw);
   if (!Number.isInteger(annualLeaveDays) || annualLeaveDays < 0 || annualLeaveDays > 365) errors.push('رصيد الإجازة السنوية غير صحيح');
@@ -139,6 +148,8 @@ function buildWhere(req, p, alertDays) {
   const where = [];
   const branch = branchCond(req, p);
   if (branch) where.push(branch);
+  if (query.employment === 'left') where.push("employment_status = 'left'");
+  else if (query.employment !== 'all') where.push(ACTIVE);
   const status = statusCondition(query.status, p, alertDays);
   if (status) where.push(status);
   const q = str(query.q);
@@ -187,11 +198,12 @@ router.get('/stats', async (req, res) => {
   const weekEnd = p.add(addDays(today(), 7));
   const branch = branchCond(req, p);
   const { rows } = await pool.query(
-    `SELECT count(*)::int AS total,
-       count(*) FILTER (WHERE ${expired})::int AS expired,
-       count(*) FILTER (WHERE ${expiring})::int AS expiring,
-       count(*) FILTER (WHERE ${valid})::int AS valid,
-       count(*) FILTER (WHERE ${expiring} AND expiry_date <= ${weekEnd}::date)::int AS "withinWeek"
+    `SELECT count(*) FILTER (WHERE ${ACTIVE})::int AS total,
+       count(*) FILTER (WHERE ${ACTIVE} AND ${expired})::int AS expired,
+       count(*) FILTER (WHERE ${ACTIVE} AND ${expiring})::int AS expiring,
+       count(*) FILTER (WHERE ${ACTIVE} AND ${valid})::int AS valid,
+       count(*) FILTER (WHERE ${ACTIVE} AND ${expiring} AND expiry_date <= ${weekEnd}::date)::int AS "withinWeek",
+       count(*) FILTER (WHERE employment_status = 'left')::int AS archived
      FROM residencies ${branch ? `WHERE ${branch}` : ''}`,
     p.values,
   );
@@ -212,7 +224,7 @@ router.get('/stats/monthly', async (req, res) => {
 
   const { rows } = await pool.query(
     `SELECT to_char(expiry_date, 'YYYY-MM') AS month, count(*)::int AS count
-     FROM residencies WHERE expiry_date >= $1::date AND expiry_date < $2::date
+     FROM residencies WHERE expiry_date >= $1::date AND expiry_date < $2::date AND ${ACTIVE}
        AND ($3::bigint IS NULL OR branch_id = $3::bigint)
      GROUP BY 1`,
     [monthStart, end.toISOString().slice(0, 10), req.branch || null],
@@ -224,7 +236,7 @@ router.get('/stats/monthly', async (req, res) => {
 // ---------- تصدير / استيراد ----------
 
 const EXPORT_HEADER = ['الاسم', 'رقم الإقامة', 'تاريخ الانتهاء', 'تاريخ الانتهاء هجري', 'الجنسية', 'الجوال', 'جهة العمل',
-  'الفرع', 'رصيد الإجازة السنوية', 'ملاحظات', 'الأيام المتبقية', 'الحالة'];
+  'الفرع', 'رصيد الإجازة السنوية', 'ملاحظات', 'الأيام المتبقية', 'الحالة', 'حالة الموظف', 'تاريخ ترك العمل', 'سبب ترك العمل'];
 const STATUS_LABELS = { expired: 'منتهية', expiring: 'قريبة من الانتهاء', valid: 'سارية' };
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -240,6 +252,7 @@ async function exportRows(req) {
   return rows.map((r) => [
     r.name, r.iqama_number, r.expiry_date, gregorianToHijri(r.expiry_date),
     r.nationality, r.phone, r.employer, r.branch_name || '', r.annual_leave_days, r.notes, r.days_left, STATUS_LABELS[statusOf(r.days_left, alertDays)],
+    r.employment_status === 'left' ? 'ترك العمل' : 'على رأس العمل', r.left_date || '', r.left_reason || '',
   ]);
 }
 
@@ -471,6 +484,38 @@ router.delete('/residencies/:id', async (req, res) => {
   return res.status(204).end();
 });
 
+// ---------- إنهاء الخدمة والأرشيف ----------
+
+router.put('/residencies/:id/employment', async (req, res) => {
+  const id = parseId(req, res);
+  if (!id) return undefined;
+  const body = req.body || {};
+  const status = body.status === 'left' ? 'left' : body.status === 'active' ? 'active' : null;
+  if (!status) return res.status(400).json({ error: 'حالة غير صحيحة' });
+  const leftDate = status === 'left' ? str(body.leftDate) || today() : null;
+  const leftReason = status === 'left' ? str(body.leftReason) : '';
+  if (status === 'left') {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(leftDate)) return res.status(400).json({ error: 'تاريخ ترك العمل غير صحيح' });
+    if (!LEFT_REASONS.includes(leftReason)) return res.status(400).json({ error: 'اختر سبب ترك العمل' });
+  }
+  const { rows: [before] } = await pool.query(
+    'SELECT name, iqama_number, employment_status FROM residencies WHERE id = $1 AND ($2::bigint IS NULL OR branch_id = $2::bigint)',
+    [id, req.branch || null]);
+  if (!before) return res.status(404).json({ error: 'الإقامة غير موجودة' });
+  const { rows } = await pool.query(
+    `UPDATE residencies SET employment_status = $3, left_date = $4, left_reason = $5, updated_at = now()
+     WHERE id = $2 RETURNING ${columns('$1')}`,
+    [today(), id, status, leftDate, leftReason],
+  );
+  audit.log(req, 'update', 'residencies', id, status === 'left'
+    ? `ترك العمل: ${before.name} (${leftReason}، ${leftDate})`
+    : `إعادة للعمل: ${before.name}`,
+  { 'حالة الموظف': [before.employment_status === 'left' ? 'ترك العمل' : 'على رأس العمل', status === 'left' ? 'ترك العمل' : 'على رأس العمل'] });
+  return res.json(toApi(rows[0], await getAlertDays()));
+});
+
+router.get('/employment/reasons', (req, res) => res.json(LEFT_REASONS));
+
 // ---------- الإعدادات ----------
 
 router.get('/settings', async (req, res) => {
@@ -498,4 +543,4 @@ router.put('/settings', async (req, res) => {
   return res.json({ alertDays: await getAlertDays(), companyName: (await getSetting('company_name')) || '' });
 });
 
-module.exports = { router, validate, statusOf, statusCondition, columns, params, today, addDays, toApi };
+module.exports = { router, validate, statusOf, statusCondition, columns, params, today, addDays, toApi, ACTIVE };

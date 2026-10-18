@@ -433,6 +433,7 @@ new ResizeObserver(() => { if (state.view === 'dashboard') renderChart(); }).obs
 function listParams() {
   const params = new URLSearchParams({ page: state.page, pageSize: state.pageSize, sort: $('sort').value });
   if (state.status !== 'all') params.set('status', state.status);
+  if ($('employment').value !== 'active') params.set('employment', $('employment').value);
   const q = $('search').value.trim();
   if (q) params.set('q', q);
   return params;
@@ -459,15 +460,18 @@ async function loadList() {
   state.total = data.total;
 
   $('rows').innerHTML = data.items.map((r, i) => `
-    <tr style="animation-delay:${Math.min(i, 12) * 25}ms">
+    <tr style="animation-delay:${Math.min(i, 12) * 25}ms"${r.employment === 'left' ? ' class="left-row"' : ''}>
       <td><div class="person">${avatar(r)}
         <div><strong>${esc(r.name)}</strong><small>${esc(r.nationality || '—')}</small></div></div></td>
       <td><span class="mono">${esc(r.iqamaNumber)}</span></td>
       <td>${esc(r.employer || '—')}${r.branchName && !Branch.current ? `<span class="sub">${esc(r.branchName)}</span>` : ''}</td>
       <td>${esc(fmtHijri(r.expiryDate))}<span class="sub">${esc(fmtGregorian(r.expiryDate, 'short'))}</span></td>
-      <td><div class="remain ${r.status}"><span>${remainingText(r.daysLeft)}</span>
+      ${r.employment === 'left'
+    ? `<td><span class="muted">منذ ${esc(fmtGregorian(r.leftDate, 'short'))}</span><span class="sub">${esc(r.leftReason)}</span></td>
+      <td><span class="pill neutral">ترك العمل</span></td>`
+    : `<td><div class="remain ${r.status}"><span>${remainingText(r.daysLeft)}</span>
         <span class="track"><span class="fill" style="width:${progress(r)}%"></span></span></div></td>
-      <td><span class="pill ${r.status}">${icon(STATUS[r.status].icon, 'icon-sm')}${STATUS[r.status].label}</span></td>
+      <td><span class="pill ${r.status}">${icon(STATUS[r.status].icon, 'icon-sm')}${STATUS[r.status].label}</span></td>`}
       <td><div class="row-actions">
         <button class="icon-btn" data-profile="${r.id}" title="ملف الموظف والمستندات" aria-label="ملف ${esc(r.name)}">${icon('folder')}</button>
         ${can('residencies', 'write') ? `<button class="icon-btn" data-edit="${r.id}" title="تعديل" aria-label="تعديل ${esc(r.name)}">${icon('edit')}</button>
@@ -479,7 +483,11 @@ async function loadList() {
   const pages = Math.max(1, Math.ceil(data.total / data.pageSize));
   const from = data.total ? (data.page - 1) * data.pageSize + 1 : 0;
   const to = Math.min(data.total, data.page * data.pageSize);
-  $('listSub').textContent = STATUS[state.status] ? `${fmt(data.total)} إقامة ${STATUS[state.status].label}` : `${fmt(data.total)} إقامة مسجلة`;
+  const employment = $('employment').value;
+  const archived = state.stats?.archived || 0;
+  $('listSub').textContent = employment === 'left' ? `${fmt(data.total)} موظف في الأرشيف (ترك العمل)`
+    : (STATUS[state.status] ? `${fmt(data.total)} إقامة ${STATUS[state.status].label}` : `${fmt(data.total)} إقامة مسجلة`)
+      + (employment === 'active' && archived ? ` · ${fmt(archived)} في الأرشيف` : '');
   $('pageInfo').textContent = `عرض ${fmt(from)}–${fmt(to)} من ${fmt(data.total)} · صفحة ${fmt(data.page)} من ${fmt(pages)}`;
   $('prev').disabled = data.page <= 1;
   $('next').disabled = data.page >= pages;
@@ -504,6 +512,7 @@ $('search').addEventListener('input', () => {
   searchTimer = setTimeout(() => { state.page = 1; loadList(); }, 300);
 });
 $('sort').addEventListener('change', () => { state.page = 1; loadList(); });
+$('employment').addEventListener('change', () => { state.page = 1; state.items = []; loadList(); });
 $('prev').addEventListener('click', () => { state.page -= 1; loadList(); });
 $('next').addEventListener('click', () => { state.page += 1; loadList(); });
 

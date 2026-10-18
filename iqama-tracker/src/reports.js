@@ -23,33 +23,34 @@ const CAR_SERVICE = `JOIN LATERAL (
 const SOURCES = [
   {
     type: 'residency', short: 'إقامة', section: 'residencies', label: 'انتهاء إقامة', icon: 'card', open: 'employee', branch: 'e.branch_id',
-    sql: 'SELECT e.id, e.expiry_date AS date, e.name AS title, e.iqama_number AS sub FROM residencies e WHERE e.expiry_date {range}',
+    sql: `SELECT e.id, e.expiry_date AS date, e.name AS title, e.iqama_number AS sub
+      FROM residencies e WHERE e.employment_status = 'active' AND e.expiry_date {range}`,
   },
   {
     type: 'employee_doc', short: 'مستند', section: 'employee_docs', label: 'انتهاء مستند موظف', icon: 'passport', open: 'employee_docs', branch: 'e.branch_id',
     sql: `SELECT t.id, t.expiry_date AS date, e.name AS title, t.doc_type AS sub
-      FROM employee_docs t JOIN residencies e ON e.id = t.employee_id WHERE t.expiry_date {range}`,
+      FROM employee_docs t JOIN residencies e ON e.id = t.employee_id AND e.employment_status = 'active' WHERE t.expiry_date {range}`,
   },
   {
     type: 'driver_card', short: 'بطاقة سائق', section: 'driver_cards', label: 'انتهاء بطاقة سائق', icon: 'steering', open: 'driver_cards', branch: 'e.branch_id',
     sql: `SELECT t.id, t.expiry_date AS date, e.name AS title, t.card_number AS sub
-      FROM driver_cards t JOIN residencies e ON e.id = t.employee_id WHERE t.expiry_date {range}`,
+      FROM driver_cards t JOIN residencies e ON e.id = t.employee_id AND e.employment_status = 'active' WHERE t.expiry_date {range}`,
   },
   {
     type: 'visa_return', short: 'عودة', section: 'visas', label: 'آخر موعد للعودة', icon: 'plane', open: 'visas', branch: 'e.branch_id',
     sql: `SELECT t.id, t.return_deadline AS date, e.name AS title, concat_ws(' · ', t.visa_type, NULLIF(t.destination, '')) AS sub
-      FROM visas t JOIN residencies e ON e.id = t.employee_id
+      FROM visas t JOIN residencies e ON e.id = t.employee_id AND e.employment_status = 'active'
       WHERE t.actual_return_date IS NULL AND t.visa_type <> 'خروج نهائي' AND t.return_deadline {range}`,
   },
   {
     type: 'leave_start', short: 'إجازة', section: 'leaves', label: 'بداية إجازة', icon: 'sun-palm', open: 'leaves', branch: 'e.branch_id',
     sql: `SELECT t.id, t.start_date AS date, e.name AS title, concat(t.leave_type, ' · ', t.end_date - t.start_date + 1, ' يوم') AS sub
-      FROM leaves t JOIN residencies e ON e.id = t.employee_id WHERE t.approval <> 'مرفوضة' AND t.start_date {range}`,
+      FROM leaves t JOIN residencies e ON e.id = t.employee_id AND e.employment_status = 'active' WHERE t.approval <> 'مرفوضة' AND t.start_date {range}`,
   },
   {
     type: 'leave_end', short: 'عودة إجازة', section: 'leaves', label: 'عودة من إجازة', icon: 'sun-palm', open: 'leaves', branch: 'e.branch_id',
     sql: `SELECT t.id, t.end_date + 1 AS date, e.name AS title, t.leave_type AS sub
-      FROM leaves t JOIN residencies e ON e.id = t.employee_id WHERE t.approval <> 'مرفوضة' AND t.end_date + 1 {range}`,
+      FROM leaves t JOIN residencies e ON e.id = t.employee_id AND e.employment_status = 'active' WHERE t.approval <> 'مرفوضة' AND t.end_date + 1 {range}`,
   },
   {
     type: 'contract', short: 'عقد', section: 'contracts', label: 'انتهاء عقد', icon: 'contract', open: 'contracts', branch: 't.branch_id',
@@ -160,7 +161,8 @@ const REPORTS = {
       if (req.branch) vals.push(req.branch);
       const { rows } = await pool.query(
         `SELECT ${columns('$1')} FROM residencies
-         WHERE expiry_date BETWEEN $3::date AND $2::date ${req.branch ? 'AND branch_id = $4::bigint' : ''}
+         WHERE expiry_date BETWEEN $3::date AND $2::date AND employment_status = 'active'
+           ${req.branch ? 'AND branch_id = $4::bigint' : ''}
          ORDER BY expiry_date, name LIMIT 10000`,
         vals,
       );

@@ -19,7 +19,8 @@ async function collectAlerts(branch = null) {
   const recentStart = p.add(new Date(Date.parse(today()) - 30 * 86400000).toISOString().slice(0, 10));
   const todayParam = p.add(today());
   const branchCond = branch ? ` AND branch_id = ${p.add(branch)}` : '';
-  const where = `((${expiring}) OR (expiry_date >= ${recentStart}::date AND expiry_date < ${todayParam}::date))${branchCond}`;
+  const where = `((${expiring}) OR (expiry_date >= ${recentStart}::date AND expiry_date < ${todayParam}::date))${branchCond}
+    AND employment_status = 'active'`;
 
   const [{ rows }, { rows: [{ total, expired }] }] = await Promise.all([
     pool.query(
