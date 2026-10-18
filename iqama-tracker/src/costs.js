@@ -1,8 +1,9 @@
 // تكلفة تجديد الإقامة: تكلفة سنوية افتراضية للمنشأة (من الإعدادات)، ولكل موظف تكلفة خاصة اختيارية.
-// الموظف السعودي (رقم الهوية يبدأ بـ 1) مالوش إقامة يجددها فتكلفته صفر.
+// الموظف السعودي (رقم هوية يبدأ بـ 1 أو جنسية سعودية) مالوش إقامة يجددها فتكلفته صفر.
 const express = require('express');
 const { getSetting, setSetting } = require('./db');
 const audit = require('./audit');
+const { saudiSql } = require('./saudization');
 
 // بنود تقديرية تعدّلها كل منشأة حسب وضعها (المقابل المالي 800 ر.س شهريًا = 9,600 سنويًا)
 const ITEMS = [
@@ -23,7 +24,7 @@ async function defaultCost() {
 }
 
 // تعبير SQL لتكلفة تجديد الموظف (alias = اسم جدول الإقامات في الاستعلام)
-const costSql = (param, alias = 'residencies') => `(CASE WHEN ${alias}.iqama_number LIKE '1%' THEN 0
+const costSql = (param, alias = 'residencies') => `(CASE WHEN ${saudiSql(alias)} THEN 0
   ELSE COALESCE(${alias}.renewal_cost, ${param}::numeric) END)`;
 
 const router = express.Router();

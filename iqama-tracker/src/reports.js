@@ -7,6 +7,7 @@ const { columns, today, addDays, statusOf, toApi } = require('./residencies');
 const { gregorianToHijri } = require('../public/hijri');
 const { can } = require('./permissions');
 const { defaultCost, costSql } = require('./costs');
+const saudization = require('./saudization');
 
 const router = express.Router();
 const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
@@ -239,7 +240,7 @@ const REPORTS = {
       const perEmployee = await defaultCost();
       const vals = [t, end, perEmployee];
       if (req.branch) vals.push(req.branch);
-      const where = `FROM residencies WHERE expiry_date < $2::date AND employment_status = 'active' AND iqama_number NOT LIKE '1%'
+      const where = `FROM residencies WHERE expiry_date < $2::date AND employment_status = 'active' AND NOT ${saudization.saudiSql()}
         ${req.branch ? 'AND branch_id = $4::bigint' : ''}`;
       // الإجماليات على كل الموظفين، والتفاصيل لحد 5000 صف
       const [{ rows: groups }, { rows }] = await Promise.all([
@@ -305,6 +306,45 @@ const REPORTS = {
           { label: 'عدد التجديدات', value: all },
           { label: 'متأخرة (منتهية)', value: total(overdue), type: 'money', tone: 'expired' },
           { label: 'خلال 3 شهور', value: total(groups, 'soon'), type: 'money', tone: 'expiring' },
+        ],
+        sections,
+      };
+    },
+  },
+
+  saudization: {
+    title: 'تقرير نسبة السعودة',
+    description: 'عدد السعوديين وغير السعوديين ونسبة السعودة لكل فرع، وتوزيع الموظفين حسب الجنسية.',
+    section: 'residencies',
+    icon: 'users',
+    params: [],
+    async run(req) {
+      const s = await saudization.summary(req.branch);
+      const nat = await saudization.byNationality(req.branch);
+      const pct = (v) => `${v.toLocaleString('en-US')}%`;
+      const sections = [{
+        title: 'حسب الفرع',
+        columns: [
+          { label: 'الفرع' }, { label: 'الموظفون', type: 'number' }, { label: 'سعوديون', type: 'number' },
+          { label: 'غير سعوديين', type: 'number' }, { label: 'نسبة السعودة' },
+          ...(s.target ? [{ label: `المطلوب للوصول لـ \u2066${pct(s.target)}\u2069`, type: 'number' }] : []),
+        ],
+        rows: s.branches.map((b) => [b.name, b.total, b.saudis, b.total - b.saudis, pct(b.ratio), ...(s.target ? [b.needed] : [])]),
+        totals: ['الإجمالي', s.total, s.saudis, s.total - s.saudis, pct(s.ratio), ...(s.target ? [s.needed] : [])],
+      }, {
+        title: 'حسب الجنسية',
+        columns: [{ label: 'الجنسية' }, { label: 'العدد', type: 'number' }, { label: 'النسبة' }],
+        rows: nat.map((r) => [r.nationality, r.n, pct(saudization.ratio(r.n, s.total))]),
+      }];
+      return {
+        subtitle: `الموظفون على رأس العمل${s.target ? ` · النسبة المستهدفة \u2066${pct(s.target)}\u2069` : ''}`,
+        kpis: [
+          { label: 'نسبة السعودة', value: pct(s.ratio), tone: s.target && s.ratio < s.target ? 'expired' : '' },
+          { label: 'سعوديون', value: s.saudis },
+          { label: 'غير سعوديين', value: s.total - s.saudis },
+          s.target
+            ? { label: 'سعوديون مطلوب تعيينهم', value: s.needed, tone: s.needed ? 'expiring' : '' }
+            : { label: 'إجمالي الموظفين', value: s.total },
         ],
         sections,
       };

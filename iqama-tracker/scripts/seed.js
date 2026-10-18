@@ -15,11 +15,13 @@ async function main() {
     for (let j = i; j < Math.min(count, i + 5000); j++) {
       const d = new Date();
       d.setDate(d.getDate() + Math.floor(Math.random() * 760) - 60);
+      // حوالي 18% سعوديين (رقم هوية يبدأ بـ 1) لعرض نسبة السعودة
+      const saudi = Math.random() < 0.18;
       batch.push({
         name: `${pick(FIRST)} ${pick(LAST)}`,
-        iqama: String(2000000000 + Math.floor(Math.random() * 999999999)),
+        iqama: String((saudi ? 1000000000 : 2000000000) + Math.floor(Math.random() * 999999999)),
         expiry: d.toISOString().slice(0, 10),
-        nationality: pick(NATIONALITIES),
+        nationality: saudi ? 'سعودي' : pick(NATIONALITIES),
         employer: pick(EMPLOYERS),
       });
     }

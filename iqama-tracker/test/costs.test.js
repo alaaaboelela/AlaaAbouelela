@@ -56,6 +56,7 @@ test('تكلفة التجديد والتوقعات', { skip: !TEST_DB && 'TEST_D
     assert.equal(a.renewalCost, null);
     assert.equal(b.renewalCost, 3000);
     await add('سعود', '1000000003', 20);
+    await add('سعودي برقم قديم', '2000000013', 25, { nationality: 'سعودي' });
     await add('متأخر', '2000000004', -5);
     const left = (await add('ترك', '2000000005', 10)).data;
     await call(`/residencies/${left.id}/employment`, 'PUT', { status: 'left', leftDate: isoInDays(-1), leftReason: 'استقالة' });
@@ -68,7 +69,7 @@ test('تكلفة التجديد والتوقعات', { skip: !TEST_DB && 'TEST_D
 
   await t.test('الإحصاء الشهري بالتكلفة', async () => {
     const { months, overdue } = (await call('/stats/monthly')).data;
-    assert.equal(months.reduce((s, m) => s + m.count, 0), 3);
+    assert.equal(months.reduce((s, m) => s + m.count, 0), 4);
     assert.equal(months.reduce((s, m) => s + m.cost, 0), 9050 + 3000);
     assert.deepEqual(overdue, { count: 1, cost: 9050 });
   });

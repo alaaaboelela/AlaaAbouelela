@@ -217,6 +217,10 @@ router.get('/stats', async (req, res) => {
   res.json({ alertDays, ...rows[0] });
 });
 
+router.get('/stats/saudization', async (req, res) => {
+  res.json(await require('./saudization').summary(req.branch));
+});
+
 // عدد الإقامات التي تنتهي في كل شهر من الأشهر الـ 12 القادمة
 router.get('/stats/monthly', async (req, res) => {
   const monthStart = `${today().slice(0, 7)}-01`;
@@ -533,8 +537,13 @@ router.get('/employment/reasons', (req, res) => res.json(LEFT_REASONS));
 
 // ---------- الإعدادات ----------
 
+async function settingsJson() {
+  const { getTarget } = require('./saudization');
+  return { alertDays: await getAlertDays(), companyName: (await getSetting('company_name')) || '', saudizationTarget: await getTarget() };
+}
+
 router.get('/settings', async (req, res) => {
-  res.json({ alertDays: await getAlertDays(), companyName: (await getSetting('company_name')) || '' });
+  res.json(await settingsJson());
 });
 
 // كل مفتاح يُحدَّث لوحده لو موجود في الطلب
@@ -555,7 +564,16 @@ router.put('/settings', async (req, res) => {
     await setSetting('company_name', name);
     audit.log(req, 'settings', 'settings', '', `اسم المنشأة في التقارير: ${old || '—'} ← ${name || '—'}`);
   }
-  return res.json({ alertDays: await getAlertDays(), companyName: (await getSetting('company_name')) || '' });
+  if (body.saudizationTarget !== undefined) {
+    const target = Number(body.saudizationTarget || 0);
+    if (!Number.isFinite(target) || target < 0 || target > 95) {
+      return res.status(400).json({ error: 'نسبة السعودة المستهدفة من 0 إلى 95%' });
+    }
+    const old = await require('./saudization').getTarget();
+    await setSetting('saudization_target', Math.round(target * 10) / 10);
+    if (old !== target) audit.log(req, 'settings', 'settings', '', `نسبة السعودة المستهدفة: ${old || '—'}% ← ${target || '—'}%`);
+  }
+  return res.json(await settingsJson());
 });
 
 module.exports = { router, validate, statusOf, statusCondition, columns, params, today, addDays, toApi, ACTIVE };

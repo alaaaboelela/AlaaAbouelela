@@ -313,7 +313,48 @@ function notifyBrowser(s) {
 // ---------- لوحة المتابعة ----------
 
 async function loadDashboard() {
-  await Promise.all([loadStats(), loadChart(), loadUpcoming(), Modules.loadOverview()]);
+  await Promise.all([loadStats(), loadChart(), loadUpcoming(), Modules.loadOverview(), loadSaudization()]);
+}
+
+// ---------- نسبة السعودة ----------
+
+// معزولة الاتجاه عشان "20%" ما تتقلبش "%20" جوه النص العربي
+const pct = (v) => `\u2066${Number(v).toLocaleString('en-US', { maximumFractionDigits: 1 })}%\u2069`;
+
+async function loadSaudization() {
+  const s = await api('/api/stats/saudization');
+  const card = $('saudiCard');
+  card.hidden = !s.total;
+  if (!s.total) return;
+  const below = s.target && s.ratio < s.target;
+  $('saudiRatio').textContent = pct(s.ratio);
+  $('saudiCounts').textContent = `${fmt(s.saudis)} سعودي من ${fmt(s.total)} موظف`;
+  $('saudiSub').textContent = s.target ? `الهدف ${pct(s.target)} · الموظفون على رأس العمل` : 'الموظفون على رأس العمل';
+  const fill = $('saudiFill');
+  fill.style.width = `${Math.min(100, s.ratio)}%`;
+  fill.classList.toggle('below', Boolean(below));
+  const mark = $('saudiTargetMark');
+  mark.hidden = !s.target;
+  if (s.target) {
+    mark.style.insetInlineStart = `${s.target}%`;
+    mark.dataset.label = `الهدف ${pct(s.target)}`;
+  }
+  $('saudiBar').setAttribute('aria-label', `نسبة السعودة ${pct(s.ratio)}${s.target ? ` من هدف ${pct(s.target)}` : ''}`);
+  $('saudiNote').innerHTML = !s.target
+    ? `غير السعوديين: <b>${fmt(s.total - s.saudis)}</b>${can('settings', 'write') ? ' · حددي النسبة المستهدفة من <a href="#settings">الإعدادات</a>' : ''}`
+    : below
+      ? `محتاجين <b>${fmt(s.needed)}</b> موظف سعودي إضافي للوصول للهدف`
+      : `${icon('check', 'icon-sm')} النسبة فوق الهدف`;
+  const branches = s.branches.length > 1 ? s.branches : [];
+  $('saudiBranches').innerHTML = branches.map((b) => {
+    const low = s.target && b.ratio < s.target;
+    return `<li><span class="name">${esc(b.name)}<small>${fmt(b.saudis)} من ${fmt(b.total)}${low && b.needed ? ` · ينقص ${fmt(b.needed)}` : ''}</small></span>
+      <span class="mini"><span class="${low ? 'below' : ''}" style="width:${Math.min(100, b.ratio)}%"></span></span>
+      <span class="pct">${pct(b.ratio)}</span></li>`;
+  }).join('');
+  $('saudiBranches').hidden = !branches.length;
+  card.querySelector('.saudi-body').classList.toggle('single', !branches.length);
+  $('saudiReport').href = `/report.html?key=saudization${Branch.current && !Branch.locked ? `&branch=${encodeURIComponent(Branch.current)}` : ''}`;
 }
 
 async function loadUpcoming() {
@@ -743,14 +784,17 @@ form.addEventListener('submit', async (e) => {
 async function loadSettings() {
   const s = state.stats || await loadStats();
   $('alertDays').value = s.alertDays;
-  api('/api/settings').then((x) => { $('companyName').value = x.companyName; }).catch(() => {});
+  api('/api/settings').then((x) => {
+    $('companyName').value = x.companyName;
+    $('saudiTarget').value = x.saudizationTarget || 0;
+  }).catch(() => {});
   const me = state.me;
   $('emailStatus').innerHTML = me.emailEnabled
     ? `<span class="pill valid">${icon('check', 'icon-sm')}مفعّلة</span> تُرسل إلى: <span class="mono">${me.alertEmails.map(esc).join('، ')}</span>`
     : `<span class="pill neutral">غير مفعّلة</span> اضبط إعدادات <span class="mono">SMTP</span> و <span class="mono">ALERT_EMAILS</span> في ملف <span class="mono">.env</span> على الخادم`;
   $('sendEmail').disabled = !me.emailEnabled;
   const canSettings = can('settings', 'write');
-  for (const el of [$('saveSettings'), $('sendEmail'), $('alertDays'), $('companyName'), $('saveCompany'), ...$$('[data-step], [data-days]')]) el.disabled = !canSettings || (el.id === 'sendEmail' && !me.emailEnabled);
+  for (const el of [$('saveSettings'), $('sendEmail'), $('alertDays'), $('companyName'), $('saveCompany'), $('saudiTarget'), $('saveSaudiTarget'), ...$$('[data-step], [data-days]')]) el.disabled = !canSettings || (el.id === 'sendEmail' && !me.emailEnabled);
   const msg = me.messaging;
   const off = (what) => `<span class="pill neutral">غير مفعّل</span> اضبطي ${what} في ملف <span class="mono">.env</span>`;
   $('smsStatus').innerHTML = `<b>SMS:</b> ${msg.sms.enabled ? `<span class="pill valid">${icon('check', 'icon-sm')}مفعّل</span> عن طريق ${esc(msg.sms.provider)}`
@@ -997,6 +1041,15 @@ for (const b of $$('[data-step]')) {
   });
 }
 for (const b of $$('[data-days]')) b.addEventListener('click', () => { $('alertDays').value = b.dataset.days; });
+
+$('saveSaudiTarget').addEventListener('click', async () => {
+  try {
+    await api('/api/settings', { method: 'PUT', body: JSON.stringify({ saudizationTarget: Number($('saudiTarget').value || 0) }) });
+    toast('تم حفظ نسبة السعودة المستهدفة');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+});
 
 $('saveCompany').addEventListener('click', async () => {
   try {

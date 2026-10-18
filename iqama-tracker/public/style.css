@@ -1496,3 +1496,31 @@ img.initials { object-fit: cover; background: var(--surface-3); }
 .cost-total b { font-size: 16px; color: var(--text); }
 #chartMetric { flex-shrink: 0; }
 .text-expired { color: var(--danger); font-weight: 600; }
+
+/* نسبة السعودة */
+.saudi-card { margin-top: 16px; animation: rise .6s .28s var(--ease) both; }
+.saudi-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 32px; align-items: start; }
+.saudi-body.single { grid-template-columns: 1fr; }
+.saudi-ratio { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.saudi-ratio b { font-size: 40px; line-height: 1; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.saudi-ratio span { color: var(--text-2); font-size: 13.5px; }
+.saudi-bar { position: relative; height: 12px; border-radius: 999px; background: var(--surface-3); overflow: visible; }
+.saudi-bar .fill { position: absolute; inset-block: 0; inset-inline-start: 0; border-radius: 999px; background: var(--chart); transition: width .8s var(--ease); }
+.saudi-bar .fill.below { background: var(--warning); }
+.saudi-bar .target { position: absolute; top: -5px; bottom: -5px; width: 2px; background: var(--text); border-radius: 2px; }
+.saudi-bar .target::after { content: attr(data-label); position: absolute; top: 24px; transform: translateX(50%); font-size: 11.5px; color: var(--text-2); white-space: nowrap; }
+.saudi-note { margin: 36px 0 0; font-size: 13.5px; color: var(--text-2); }
+.saudi-note b { color: var(--text); }
+.saudi-branches { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.saudi-branches li { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(0, 2fr) 56px; align-items: center; gap: 12px; font-size: 13.5px; }
+.saudi-branches .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.saudi-branches .name small { display: block; color: var(--muted); font-size: 12px; }
+.saudi-branches .mini { height: 8px; border-radius: 999px; background: var(--surface-3); position: relative; }
+.saudi-branches .mini span { position: absolute; inset-block: 0; inset-inline-start: 0; border-radius: 999px; background: var(--chart); }
+.saudi-branches .mini span.below { background: var(--warning); }
+.saudi-branches .pct { text-align: left; font-variant-numeric: tabular-nums; font-weight: 600; }
+@media (max-width: 900px) { .saudi-body { grid-template-columns: 1fr; } }
+@media (max-width: 600px) {
+  .saudi-branches li { grid-template-columns: minmax(0, 1fr) 52px; row-gap: 6px; }
+  .saudi-branches .name { grid-column: 1 / -1; }
+}
